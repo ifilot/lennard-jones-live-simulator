@@ -85,4 +85,10 @@ public:
                                                const QVector3D& ray_vector,
                                                const QVector3D& plane_origin,
                                                const QVector3D& plane_normal);
+
+    /**
+     * @brief Rotate scene around z-axis
+     * @param angle
+     */
+     void rotate_z(float angle);
 };

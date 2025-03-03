@@ -114,6 +114,12 @@ public:
     AnaglyphWidget(QWidget *parent = 0);
 
     /**
+     * @brief Rotate the scene
+     * @param angle
+     */
+     void rotate_scene(float angle);
+
+    /**
      * @brief      Paint the models in the models vector to the screen
      */
     void draw_structure();
@@ -146,6 +152,14 @@ public:
 
     ~AnaglyphWidget();
 
+    inline void set_axis_enabled(bool value) {
+        this->flag_axis_enabled = value;
+    }
+
+    inline bool get_axis_enabled() const {
+        return this->flag_axis_enabled;
+    }
+
     /**
      * @brief      Gets the user action object.
      *
@@ -170,22 +184,6 @@ public slots:
      * @brief      Clean the anaglyph class
      */
     void cleanup();
-
-    /**
-     * @brief      Toggle showing periodicity in xy direction
-     */
-    inline void toggle_periodicity_xy() {
-        this->flag_show_periodicity_xy = !this->flag_show_periodicity_xy;
-        this->update();
-    }
-
-    /**
-     * @brief      Toggle periodicity in z-direction
-     */
-    inline void toggle_periodicity_z() {
-        this->flag_show_periodicity_z = !this->flag_show_periodicity_z;
-        this->update();
-    }
 
 protected:
     /**

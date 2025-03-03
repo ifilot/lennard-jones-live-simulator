@@ -33,6 +33,7 @@
 #include <QTimer>
 #include <QStringList>
 #include <QLabel>
+#include <memory>
 
 #include "logwindow.h"
 #include "anaglyph_widget.h"
@@ -71,6 +72,10 @@ private:
 
     // window for log messages
     std::unique_ptr<LogWindow> log_window;
+
+    QTimer *rotation_timer;
+
+    bool flag_rotate = false;
 
 public:
     /**
@@ -132,6 +137,10 @@ private slots:
 
     // viewport interfacing
     void toggle_world_axes();
+
+    /*
+     * Enable / disable scene rotation
+     */
     void toggle_rotation();
 
     /**
@@ -143,6 +152,11 @@ private slots:
      * @brief Transmit velocities from simulation to Graph Widget
      */
     void slot_transmit_velocities();
+
+    /**
+    * @brief Handles rotation timer
+    */
+    void rotation_timer_trigger();
 
 private:
 
@@ -171,4 +185,9 @@ private:
       * - A GraphWidget on the right.
       */
     void set_widgets();
+
+    /**
+    * Setup a simulation
+    */
+    void setup_simulation(const std::shared_ptr<LennardJonesParameters>& params);
 };

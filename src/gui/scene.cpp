@@ -24,6 +24,14 @@ Scene::Scene() {
 }
 
 /**
+ * @brief Rotate scene around z-axis
+ * @param angle
+ */
+ void Scene::rotate_z(float angle) {
+    this->rotation_matrix.rotate(angle, QVector3D(0,0,1));
+}
+
+/**
  * @brief       calculate a ray originating based on mouse position and current view
  *
  * @param       mouse position

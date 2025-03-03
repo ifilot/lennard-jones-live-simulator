@@ -58,6 +58,24 @@ MainWindow::MainWindow(const std::shared_ptr<QStringList> _log_messages,
     // set Window properties
     this->setWindowTitle(QString(PROGRAM_NAME) + " " + QString(PROGRAM_VERSION));
     this->resize(1280,640);
+
+    // rotation timer
+    this->rotation_timer = new QTimer(this);
+    connect(this->rotation_timer, SIGNAL(timeout()), this, SLOT(rotation_timer_trigger()));
+
+    // start with a default configuration
+    auto params = std::make_shared<LennardJonesParameters>();
+    params->set_param("cell_length", 14.938);
+    params->set_param("nr_particles", 1000);
+    params->set_param("kT", 1.0);
+    params->set_param("mass", 1.0);
+    params->set_param("sigma", 1.0);
+    params->set_param("rcut", 2.5);
+    params->set_param("epsilon", 1.0);
+    params->set_param("tau", 0.5);
+    params->set_param("shell", 0.4);
+    params->set_param("stepsize", 0.001);
+    this->setup_simulation(params);
 }
 
 /**
@@ -161,23 +179,25 @@ void MainWindow::slot_debug_log() {
 }
 
 void MainWindow::toggle_world_axes() {
-    // this->anaglyph_widget->toggle_world_axes();
+    this->anaglyph_widget->set_axis_enabled(!this->anaglyph_widget->get_axis_enabled());
 
-    // if(this->anaglyph_widget->get_flag_world_axes()) {
-    //     this->button_toggle_axis->setIcon(QIcon(":/assets/icon/axes_32.png"));
-    // } else {
-    //     this->button_toggle_axis->setIcon(QIcon(":/assets/icon/axes_gray_32.png"));
-    // }
+    if(this->anaglyph_widget->get_axis_enabled()) {
+        this->button_toggle_axis->setIcon(QIcon(":/assets/icon/axes_32.png"));
+    } else {
+        this->button_toggle_axis->setIcon(QIcon(":/assets/icon/axes_gray_32.png"));
+    }
 }
 
 void MainWindow::toggle_rotation() {
-    // this->anaglyph_widget->toggle_rotation_z();
+    this->flag_rotate = !this->flag_rotate;
 
-    // if(this->anaglyph_widget->get_flag_rotation()) {
-    //     this->button_rotate_model->setIcon(QIcon(":/assets/icon/rotation_32.png"));
-    // } else {
-    //     this->button_rotate_model->setIcon(QIcon(":/assets/icon/rotation_gray_32.png"));
-    // }
+    if(flag_rotate) {
+        qDebug() << "Enabling rotation";
+        this->rotation_timer->start(1000 / 60);
+    } else {
+        qDebug() << "Disabling rotation";
+        this->rotation_timer->stop();
+    }
 }
 
 /**
@@ -410,7 +430,7 @@ void MainWindow::create_dropdown_menu() {
     connect(action_new, &QAction::triggered, this, &MainWindow::new_simulation);
     connect(action_quit, &QAction::triggered, this, &MainWindow::exit);
 
-    // connect actions projection menu (note; [this]{} is the idiomatic way by providing a functor - "this is the way")
+    // connect actions projection menu
     connect(action_projection_two_dimensional, &QAction::triggered, this, [this]{ MainWindow::set_stereo("no_stereo_flat"); });
     connect(action_projection_anaglyph_red_cyan, &QAction::triggered, this, [this]{ MainWindow::set_stereo("stereo_anaglyph_red_cyan"); });
     connect(action_projection_interlaced_rows_lr, &QAction::triggered, this, [this]{ MainWindow::set_stereo("stereo_interlaced_rows_lr"); });
@@ -482,28 +502,42 @@ void MainWindow::set_widgets() {
     int ret = dialog.exec();
 
     if(ret == QDialog::Accepted) {
-        if(this->thread == nullptr) {
-            qDebug() << "Building new thread object.";
-            // construct LJ simulation
-            this->build_simulation(params);
-
-            // spawn thread and run simulation
-            this->thread = new ThreadIntegrate(this->ljsim);
-            this->thread->toggle_pause();
-            connect(this->thread, SIGNAL(signal_integration_step()), this, SLOT(integration_step()));
-            connect(this->thread, SIGNAL(signal_ekin(double, double)), this->graph_widget, SLOT(add_data_item_kinetic_energy(double, double)));
-            connect(this->thread, SIGNAL(signal_epot(double, double)), this->graph_widget, SLOT(add_data_item_potential_energy(double, double)));
-            connect(this->thread, SIGNAL(signal_etot(double, double)), this->graph_widget, SLOT(add_data_item_total_energy(double, double)));
-            connect(this->thread, SIGNAL(signal_velocities()), this, SLOT(slot_transmit_velocities()));
-            connect(this->graph_widget, SIGNAL(signal_simulation_continue()), this->thread, SLOT(slot_simulation_unlock()));
-            connect(this->button_simulation_pause, SIGNAL(released()), this->thread, SLOT(toggle_pause()));
-            this->thread->start();
-        } else {
-            qDebug() << "Constructing new simulation";
-
-            // construct LJ simulation
-            this->build_simulation(params);
-            this->thread->set_simulation(this->ljsim);
-        }
+        this->setup_simulation(params);
     }
+}
+
+/**
+ * Setup a simulation
+ */
+void MainWindow::setup_simulation(const std::shared_ptr<LennardJonesParameters>& params) {
+    if(this->thread == nullptr) {
+        qDebug() << "Building new thread object.";
+        // construct LJ simulation
+        this->build_simulation(params);
+
+        // spawn thread and run simulation
+        this->thread = new ThreadIntegrate(this->ljsim);
+        this->thread->toggle_pause();
+        connect(this->thread, SIGNAL(signal_integration_step()), this, SLOT(integration_step()));
+        connect(this->thread, SIGNAL(signal_ekin(double, double)), this->graph_widget, SLOT(add_data_item_kinetic_energy(double, double)));
+        connect(this->thread, SIGNAL(signal_epot(double, double)), this->graph_widget, SLOT(add_data_item_potential_energy(double, double)));
+        connect(this->thread, SIGNAL(signal_etot(double, double)), this->graph_widget, SLOT(add_data_item_total_energy(double, double)));
+        connect(this->thread, SIGNAL(signal_velocities()), this, SLOT(slot_transmit_velocities()));
+        connect(this->graph_widget, SIGNAL(signal_simulation_continue()), this->thread, SLOT(slot_simulation_unlock()));
+        connect(this->button_simulation_pause, SIGNAL(released()), this->thread, SLOT(toggle_pause()));
+        this->thread->start();
+    } else {
+        qDebug() << "Constructing new simulation";
+
+        // construct LJ simulation
+        this->build_simulation(params);
+        this->thread->set_simulation(this->ljsim);
+    }
+}
+
+/**
+ * @brief Handles rotation timer
+ */
+ void MainWindow::rotation_timer_trigger() {
+    this->anaglyph_widget->rotate_scene(0.2);
 }

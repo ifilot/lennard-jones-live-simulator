@@ -52,6 +52,15 @@ AnaglyphWidget::AnaglyphWidget(QWidget *parent)
 }
 
 /**
+ * @brief Rotate the scene
+ * @param angle
+ */
+ void AnaglyphWidget::rotate_scene(float angle) {
+    this->scene->rotate_z(angle);
+    this->update();
+}
+
+/**
  * @brief      Destroys the object.
  */
 AnaglyphWidget::~AnaglyphWidget() {
