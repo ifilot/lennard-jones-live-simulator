@@ -1,8 +1,6 @@
 <RCC>
     <qresource prefix="/">
         <file>assets/configuration/atoms.json</file>
-        <file>assets/fragments/adsorbates.json</file>
-        <file>assets/fragments/hydrocarbons.json</file>
         <file>assets/icon/atom_architect_256.ico</file>
         <file>assets/icon/atom_architect_256.png</file>
         <file>assets/icon/atom_architect_logo.png</file>
@@ -40,8 +38,6 @@
         <file>assets/shaders/line.vs</file>
         <file>assets/shaders/plane.fs</file>
         <file>assets/shaders/plane.vs</file>
-        <file>assets/shaders/silhouette.fs</file>
-        <file>assets/shaders/silhouette.vs</file>
         <file>assets/shaders/stereo_anaglyph_red_cyan.fs</file>
         <file>assets/shaders/stereo_interlaced_rows_lr.fs</file>
         <file>assets/shaders/stereo_interlaced_rows_rl.fs</file>
@@ -50,12 +46,6 @@
         <file>assets/shaders/stereo_interlaced_checkerboard_lr.fs</file>
         <file>assets/shaders/stereo_interlaced_checkerboard_rl.fs</file>
         <file>assets/shaders/stereo.vs</file>
-        <file>assets/structures/POSCAR</file>
-        <file>assets/structures/OUTCAR</file>
-        <file>assets/themes/darkorange/darkorange.qss</file>
-        <file>assets/themes/darkorange/icons/checkbox.png</file>
-        <file>assets/themes/darkorange/icons/down_arrow.png</file>
-        <file>assets/themes/darkorange/icons/handle.png</file>
         <file>assets/shaders/simplecanvas.fs</file>
         <file>assets/shaders/simplecanvas.vs</file>
     </qresource>

@@ -67,8 +67,8 @@ void GraphWidget::set_params(double temperature, double m, int numparts) {
         this->series_maxwell_boltzmann->append(v/MAXSPEED, np);
     }
 
-    this->chart_particle_speed->axisY()->setRange(0, maxnumparts*1.1);
-    qobject_cast<QValueAxis*>(this->chart_particle_speed->axisY())->applyNiceNumbers();
+    this->chart_particle_speed->axes(Qt::Vertical).first()->setRange(0, maxnumparts * 1.1);
+    qobject_cast<QValueAxis*>(this->chart_particle_speed->axes(Qt::Vertical).first())->applyNiceNumbers();
     chart_particle_speed->update();
 }
 
@@ -109,15 +109,15 @@ void GraphWidget::build_empty_graphs() {
     this->chart_particle_speed->addSeries(this->series_maxwell_boltzmann);
     this->chart_particle_speed->createDefaultAxes();
 
-    this->chart_particle_speed->axisX()->setRange(0,NUMBINS);
-    this->chart_particle_speed->axisX()->hide();
+    this->chart_particle_speed->axes(Qt::Horizontal).first()->setRange(0,NUMBINS);
+    this->chart_particle_speed->axes(Qt::Horizontal).first()->hide();
     this->chart_particle_speed->setTitle("Histogram: particle speed");
 
     // specify axes
     QValueAxis *axisX = new QValueAxis();
     axisX->setRange(0,MAXSPEED);
     this->series_maxwell_boltzmann->attachAxis(axisX);
-    this->chart_particle_speed->setAxisX(axisX);
+    this->chart_particle_speed->addAxis(axisX, Qt::AlignBottom);
 }
 
 void GraphWidget::reset_graphs() {
@@ -138,7 +138,7 @@ void GraphWidget::reset_graphs() {
 
 void GraphWidget::add_data_item_kinetic_energy(double t, double ekin) {
     this->series_data_kinetic_energy->append(t, ekin);
-    this->chart_kinetic_energy->axisX()->setRange(0, t+1);
+    this->chart_kinetic_energy->axes(Qt::Horizontal).first()->setRange(0, t+1);
 
     this->kinetic_energy.push_back(ekin);
 
@@ -152,13 +152,14 @@ void GraphWidget::add_data_item_kinetic_energy(double t, double ekin) {
     this->series_data_stdlower_kinetic_energy->replace(1, t, avg - std::sqrt(variance));
     this->series_data_stdupper_kinetic_energy->replace(0, 0, avg + std::sqrt(variance));
     this->series_data_stdupper_kinetic_energy->replace(1, t, avg + std::sqrt(variance));
-    this->chart_kinetic_energy->axisY()->setRange(emin, emax);
-    qobject_cast<QValueAxis*>(this->chart_kinetic_energy->axisY())->applyNiceNumbers();
+    
+    this->chart_kinetic_energy->axes(Qt::Vertical).first()->setRange(emin, emax);
+    qobject_cast<QValueAxis*>(this->chart_kinetic_energy->axes(Qt::Vertical).first())->applyNiceNumbers();
 }
 
 void GraphWidget::add_data_item_potential_energy(double t, double epot) {
     this->series_data_potential_energy->append(t, epot);
-    this->chart_potential_energy->axisX()->setRange(0, t+1);
+    this->chart_potential_energy->axes(Qt::Horizontal).first()->setRange(0, t+1);
 
     this->potential_energy.push_back(epot);
 
@@ -172,13 +173,14 @@ void GraphWidget::add_data_item_potential_energy(double t, double epot) {
     this->series_data_stdlower_potential_energy->replace(1, t, avg - std::sqrt(variance));
     this->series_data_stdupper_potential_energy->replace(0, 0, avg + std::sqrt(variance));
     this->series_data_stdupper_potential_energy->replace(1, t, avg + std::sqrt(variance));
-    this->chart_potential_energy->axisY()->setRange(emin, emax);
-    qobject_cast<QValueAxis*>(this->chart_potential_energy->axisY())->applyNiceNumbers();
+
+    this->chart_potential_energy->axes(Qt::Vertical).first()->setRange(emin, emax);
+    qobject_cast<QValueAxis*>(this->chart_potential_energy->axes(Qt::Vertical).first())->applyNiceNumbers();
 }
 
 void GraphWidget::add_data_item_total_energy(double t, double epot) {
     this->series_data_total_energy->append(t, epot);
-    this->chart_total_energy->axisX()->setRange(0, t+1);
+    this->chart_total_energy->axes(Qt::Horizontal).first()->setRange(0, t+1);
 
     this->total_energy.push_back(epot);
 
@@ -192,8 +194,9 @@ void GraphWidget::add_data_item_total_energy(double t, double epot) {
     this->series_data_stdlower_total_energy->replace(1, t, avg - std::sqrt(variance));
     this->series_data_stdupper_total_energy->replace(0, 0, avg + std::sqrt(variance));
     this->series_data_stdupper_total_energy->replace(1, t, avg + std::sqrt(variance));
-    this->chart_total_energy->axisY()->setRange(emin, emax);
-    qobject_cast<QValueAxis*>(this->chart_total_energy->axisY())->applyNiceNumbers();
+
+    this->chart_total_energy->axes(Qt::Vertical).first()->setRange(emin, emax);
+    qobject_cast<QValueAxis*>(this->chart_total_energy->axes(Qt::Vertical).first())->applyNiceNumbers();
 }
 
 void GraphWidget::set_particle_speed(const std::vector<glm::dvec3>& velocities) {
@@ -278,6 +281,6 @@ void GraphWidget::build_extended_graph(QChart** chart,
     (*chart)->setTitle(title);
     (*chart)->legend()->hide();
     (*chart)->createDefaultAxes();
-    (*chart)->axisX()->setTitleText("Time []");
-    (*chart)->axisY()->setTitleText("Energy []");
+    (*chart)->axes(Qt::Horizontal).first()->setTitleText("Time [a.u.]");
+    (*chart)->axes(Qt::Vertical).first()->setTitleText("Energy [a.u.]");
 }

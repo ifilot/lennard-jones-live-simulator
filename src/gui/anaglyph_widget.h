@@ -52,9 +52,6 @@
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
 enum FrameBuffer {
-    SILHOUETTE_NORMAL,
-    SILHOUETTE_LEFT,
-    SILHOUETTE_RIGHT,
     STRUCTURE_NORMAL,
     STRUCTURE_LEFT,
     STRUCTURE_RIGHT,
@@ -76,7 +73,10 @@ private:
     QPoint top_left;
 
     // default background color
-    static constexpr float tint = 21.0f / 255.0f;
+    const QVector4D background = {21.0/255.0, 
+                                  21.0/255.0, 
+                                  21.0/255.0, 
+                                  1.0};
 
     unsigned int framebuffers[FrameBuffer::NR_FRAMEBUFFERS];
     unsigned int texture_color_buffers[FrameBuffer::NR_FRAMEBUFFERS];
@@ -109,20 +109,6 @@ private:
     bool flag_show_periodicity_z = false;           // whether to shwo periodicity in the z direction
 
     std::shared_ptr<UserAction> user_action;        // object that stores current action of the user on a structure
-
-    const QVector<QVector4D> color_scheme = {
-        QVector4D(0x05 / 255.0f, 0x30 / 255.0f, 0x61 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0x21 / 255.0f, 0x66 / 255.0f, 0xac / 255.0f, 0xFF / 255.0f),
-        QVector4D(0x43 / 255.0f, 0x93 / 255.0f, 0xc3 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0x92 / 255.0f, 0xc5 / 255.0f, 0xde / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xd1 / 255.0f, 0xe5 / 255.0f, 0xf0 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xf7 / 255.0f, 0xf7 / 255.0f, 0xf7 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xfd / 255.0f, 0xdb / 255.0f, 0xc7 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xf4 / 255.0f, 0xa5 / 255.0f, 0x82 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xd6 / 255.0f, 0x60 / 255.0f, 0x4d / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xb2 / 255.0f, 0x18 / 255.0f, 0x2b / 255.0f, 0xFF / 255.0f),
-        QVector4D(0x67 / 255.0f, 0x00 / 255.0f, 0x1f / 255.0f, 0xFF / 255.0f)
-    };
 
 public:
     AnaglyphWidget(QWidget *parent = 0);

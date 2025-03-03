@@ -94,7 +94,10 @@ void AnaglyphWidget::initializeGL() {
     qDebug() << "Initialize OpenGL functions";
     this->initializeOpenGLFunctions();
 
-    glClearColor(this->tint, this->tint, this->tint, 1.0f);
+    glClearColor(this->background[0],
+                 this->background[1],
+                 this->background[2],
+                 this->background[3]);
 
     qDebug() << "Load shaders";
     this->load_shaders();
@@ -385,7 +388,6 @@ void AnaglyphWidget::load_shaders() {
     shader_manager->create_shader_program("axes_shader", ShaderProgramType::AxesShader, ":/assets/shaders/axes.vs", ":/assets/shaders/axes.fs");
     shader_manager->create_shader_program("unitcell_shader", ShaderProgramType::UnitcellShader, ":/assets/shaders/line.vs", ":/assets/shaders/line.fs");
     shader_manager->create_shader_program("plane_shader", ShaderProgramType::PlaneShader, ":/assets/shaders/plane.vs", ":/assets/shaders/plane.fs");
-    shader_manager->create_shader_program("silhouette_shader", ShaderProgramType::SilhouetteShader, ":/assets/shaders/silhouette.vs", ":/assets/shaders/silhouette.fs");
 
     // create shaders for the stereographic projections
     shader_manager->create_shader_program("stereo_anaglyph_red_cyan", ShaderProgramType::StereoscopicShader, ":/assets/shaders/stereo.vs", ":/assets/shaders/stereo_anaglyph_red_cyan.fs");
@@ -486,21 +488,13 @@ void AnaglyphWidget::paint_regular() {
     this->scene->view.setToIdentity();
     this->scene->view.lookAt(this->scene->camera_position, lookat, QVector3D(0.0, 0.0, 1.0));
 
-    // first perform a simple draw call for edge detection of any selected atoms by
-    // drawing to the SILHOUETTE_NORMAL framebuffer
-    glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffers[FrameBuffer::SILHOUETTE_NORMAL]);
-    glEnable(GL_DEPTH_TEST);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    if(this->structure) {
-        this->structure_renderer->draw_silhouette(this->structure.get());
-    }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
     // regular draw call to the STRUCTURE_NORMAL framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffers[FrameBuffer::STRUCTURE_NORMAL]);
     glEnable(GL_DEPTH_TEST);
-    glClearColor(this->tint, this->tint, this->tint, 1.0f);
+    glClearColor(this->background[0],
+                 this->background[1],
+                 this->background[2],
+                 this->background[3]);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     this->draw_structure();
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -513,7 +507,6 @@ void AnaglyphWidget::paint_regular() {
 
     // update screen coordinates
     canvas_shader->set_uniform("regular_texture", 0);
-    canvas_shader->set_uniform("silhouette_texture", 1);
 
     // draw quad on screen
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
@@ -521,8 +514,6 @@ void AnaglyphWidget::paint_regular() {
     this->quad_vao.bind();
     f->glActiveTexture(GL_TEXTURE0);
     f->glBindTexture(GL_TEXTURE_2D, this->texture_color_buffers[FrameBuffer::STRUCTURE_NORMAL]);
-    f->glActiveTexture(GL_TEXTURE1);
-    f->glBindTexture(GL_TEXTURE_2D, this->texture_color_buffers[FrameBuffer::SILHOUETTE_NORMAL]);
     f->glDrawArrays(GL_TRIANGLES, 0, 6);
     this->quad_vao.release();
 
@@ -546,32 +537,15 @@ void AnaglyphWidget::paint_stereographic() {
     float dist = 1.0f - this->scene->camera_position[1];
     float eye_sep = dist / 30.0f;
 
-    // draw silhouette for left eye
-    this->scene->view.setToIdentity();
-    this->scene->view.lookAt(this->scene->camera_position - QVector3D(eye_sep / 2.0, 0.0, 0.0), lookat, QVector3D(0.0, 0.0, 1.0));
-    glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffers[FrameBuffer::SILHOUETTE_LEFT]);
-    glEnable(GL_DEPTH_TEST);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    this->structure_renderer->draw_silhouette(this->structure.get());
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    // draw silhouette for right eye
-    this->scene->view.setToIdentity();
-    this->scene->view.lookAt(this->scene->camera_position + QVector3D(eye_sep / 2.0, 0.0, 0.0), lookat, QVector3D(0.0, 0.0, 1.0));
-    glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffers[FrameBuffer::SILHOUETTE_RIGHT]);
-    glEnable(GL_DEPTH_TEST);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    this->structure_renderer->draw_silhouette(this->structure.get());
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
     // draw structure for left eye
     this->scene->view.setToIdentity();
     this->scene->view.lookAt(this->scene->camera_position - QVector3D(eye_sep / 2.0, 0.0, 0.0), lookat, QVector3D(0.0, 0.0, 1.0));
     glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffers[FrameBuffer::STRUCTURE_LEFT]);
     glEnable(GL_DEPTH_TEST);
-    glClearColor(this->tint, this->tint, this->tint, 1.0f);
+    glClearColor(this->background[0],
+        this->background[1],
+        this->background[2],
+        this->background[3]);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     this->draw_structure();
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -581,7 +555,10 @@ void AnaglyphWidget::paint_stereographic() {
     this->scene->view.lookAt(this->scene->camera_position + QVector3D(eye_sep / 2.0, 0.0, 0.0), lookat, QVector3D(0.0, 0.0, 1.0));
     glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffers[FrameBuffer::STRUCTURE_RIGHT]);
     glEnable(GL_DEPTH_TEST);
-    glClearColor(this->tint, this->tint, this->tint, 1.0f);
+    glClearColor(this->background[0],
+        this->background[1],
+        this->background[2],
+        this->background[3]);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     this->draw_structure();
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -595,7 +572,6 @@ void AnaglyphWidget::paint_stereographic() {
 
     // update screen coordinates
     canvas_shader->set_uniform("regular_texture", 0);
-    canvas_shader->set_uniform("silhouette_texture", 1);
 
     // draw quad on screen
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
@@ -603,8 +579,6 @@ void AnaglyphWidget::paint_stereographic() {
     this->quad_vao.bind();
     f->glActiveTexture(GL_TEXTURE0);
     f->glBindTexture(GL_TEXTURE_2D, this->texture_color_buffers[FrameBuffer::STRUCTURE_LEFT]);
-    f->glActiveTexture(GL_TEXTURE1);
-    f->glBindTexture(GL_TEXTURE_2D, this->texture_color_buffers[FrameBuffer::SILHOUETTE_LEFT]);
     f->glDrawArrays(GL_TRIANGLES, 0, 6);
     this->quad_vao.release();
     canvas_shader->release();
@@ -618,14 +592,11 @@ void AnaglyphWidget::paint_stereographic() {
 
     // update screen coordinates
     canvas_shader->set_uniform("regular_texture", 0);
-    canvas_shader->set_uniform("silhouette_texture", 1);
 
     // draw quad on screen
     this->quad_vao.bind();
     f->glActiveTexture(GL_TEXTURE0);
     f->glBindTexture(GL_TEXTURE_2D, this->texture_color_buffers[FrameBuffer::STRUCTURE_RIGHT]);
-    f->glActiveTexture(GL_TEXTURE1);
-    f->glBindTexture(GL_TEXTURE_2D, this->texture_color_buffers[FrameBuffer::SILHOUETTE_RIGHT]);
     f->glDrawArrays(GL_TRIANGLES, 0, 6);
     this->quad_vao.release();
     canvas_shader->release();
