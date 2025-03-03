@@ -121,6 +121,10 @@ public:
         this->flag_draw_unitcell = false;
     }
 
+    const auto& get_vao_sphere() const {
+        return this->vao_sphere;
+    }
+
 private:
     /**
      * @brief      Draws atoms.
@@ -146,15 +150,6 @@ private:
      * @param[in]  structure  The structure
      */
     void draw_atoms_regular(const Structure* structure);
-
-    /**
-     * @brief      Draws the atoms in the periodicity expansions.
-     *
-     * @param[in]  structure       The structure
-     * @param[in]  periodicity_xy  The periodicity xy
-     * @param[in]  periodicity_z   The periodicity z
-     */
-    void draw_atoms_expansion(const Structure* structure, bool periodicity_xy, bool periodicity_z);
 
     /**
      * @brief      Draws bonds.

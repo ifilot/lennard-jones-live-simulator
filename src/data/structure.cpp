@@ -31,16 +31,6 @@ unitcell(_unitcell) {
 /**
  * @brief      Constructs a new instance.
  */
-Structure::Structure(const Fragment& fragment) {
-    this->unitcell = MatrixUnitcell::Identity() * 5.0f;
-    this->atoms = fragment.atoms;
-    this->center();
-    this->construct_bonds();
-}
-
-/**
- * @brief      Constructs a new instance.
- */
 Structure::Structure(unsigned int elnr) {
     this->unitcell = MatrixUnitcell::Identity() * 2.5f;
     this->atoms.emplace_back(elnr, 0.0, 0.0, 0.0);
@@ -48,21 +38,32 @@ Structure::Structure(unsigned int elnr) {
 }
 
 /**
- * @brief      Gets the root mean square force
- *
- * @return     The root mean square force.
+ * Set positions
  */
-double Structure::get_rms_force() const {
-    double sum = 0.0;
-    for(const auto& force : this->forces) {
-        sum += force.lengthSquared();
+void Structure::set_particle_positions(const std::vector<glm::dvec3>& _positions) {
+    this->atoms.resize(_positions.size());
+    for(unsigned int i=0; i<_positions.size(); i++) {
+        atoms[i].x = _positions[i][0];
+        atoms[i].y = _positions[i][1];
+        atoms[i].z = _positions[i][2];
+        atoms[i].atnr = 1;
     }
-
-    return sum / (float)this->forces.size();
 }
 
 /**
- * @brief      Add an atom to the structure
+ * Set velocities
+ */
+void Structure::set_particle_velocities(const std::vector<glm::dvec3>& _velocities) {
+    this->atoms.resize(_velocities.size());
+    for(unsigned int i=0; i<_velocities.size(); i++) {
+        atoms[i].vx = _velocities[i][0];
+        atoms[i].vy = _velocities[i][1];
+        atoms[i].vz = _velocities[i][2];
+    }
+}
+
+/**
+ * @brief      Add an atom to the structure including forces
  *
  * @param[in]  atnr  Atom number
  * @param[in]  x     x coordinate
@@ -71,81 +72,6 @@ double Structure::get_rms_force() const {
  */
 void Structure::add_atom(unsigned int atnr, double x, double y, double z) {
     this->atoms.emplace_back(atnr, x, y, z);
-    this->transpose_atom(this->atoms.size() - 1, QMatrix4x4());
-    this->radii.push_back(AtomSettings::get().get_atom_radius(AtomSettings::get().get_name_from_elnr(atnr)));
-}
-
-/**
- * @brief      Add an atom to the structure including forces
- *
- * @param[in]  atnr  Atom number
- * @param[in]  x     x coordinate
- * @param[in]  y     y coordinate
- * @param[in]  z     z coordinate
- * @param[in]  fx    force in x direction
- * @param[in]  fy    force in y direction
- * @param[in]  fz    force in z direction
- */
-void Structure::add_atom(unsigned int atnr, double x, double y, double z, double fx, double fy, double fz) {
-    this->add_atom(atnr, x, y, z);
-    this->forces.push_back(QVector3D(fx, fy, fz));
-}
-
-/**
- * @brief      Add an atom to the structure including forces
- *
- * @param[in]  atnr  Atom number
- * @param[in]  x     x coordinate
- * @param[in]  y     y coordinate
- * @param[in]  z     z coordinate
- * @param[in]  sx    Selective dynamics x direction
- * @param[in]  sy    Selective dynamics y direction
- * @param[in]  sz    Selective dynamics z direction
- */
-void Structure::add_atom(unsigned int atnr, double x, double y, double z, bool sx, bool sy, bool sz) {
-    this->add_atom(atnr, x, y, z);
-    this->atoms.back().selective_dynamics = {sx, sy, sz};
-}
-
-/**
- * @brief      Delete atoms in the primary buffer
- */
-void Structure::delete_atoms() {
-    std::sort(this->primary_buffer.begin(), this->primary_buffer.end(), std::greater<unsigned int>());
-
-    // check if forces are known
-    if(this->forces.size() == this->atoms.size()) {
-        for(unsigned int idx : this->primary_buffer) {
-            if(idx < this->get_nr_atoms()) {
-                this->forces.erase(this->forces.begin() + idx);
-            }
-        }
-    }
-
-    for(unsigned int idx : this->primary_buffer) {
-        if(idx < this->get_nr_atoms()) {
-            this->atoms.erase(this->atoms.begin() + idx);
-        }
-    }
-
-    // update contents
-    this->update();
-}
-
-/**
- * @brief      Commits a transposition.
- *
- * @param[in]  transposition  The transposition
- */
-void Structure::commit_transposition(const QMatrix4x4& transposition) {
-    for(unsigned int idx : this->primary_buffer) {
-        if(idx < this->get_nr_atoms()) {
-            this->transpose_atom(idx, transposition);
-        }
-    }
-
-    // update contents
-    this->update();
 }
 
 /**
@@ -244,201 +170,6 @@ QVector3D Structure::get_center_vector() const {
  */
 void Structure::update() {
     this->count_elements();
-    this->construct_bonds();
-    this->build_expansion();
-}
-
-/**
- * @brief      Select atom by idx
- *
- * @param[in]  idx   The index
- */
-void Structure::select_atom(unsigned int idx) {
-    unsigned int select = 0;
-    if(idx < this->get_nr_atoms()) {
-        this->atoms[idx].select_atom();
-        select = this->atoms[idx].select;
-    } else {
-        this->atoms_expansion[idx - this->get_nr_atoms()].select_atom();
-        select = this->atoms_expansion[idx - this->get_nr_atoms()].select;
-    }
-
-    if(select == 1) {   // add to first buffer
-        this->primary_buffer.push_back(idx);
-    } else if(select == 2) { // add to first buffer and remove from first
-        this->secondary_buffer.push_back(idx);
-        this->primary_buffer.erase(std::remove(this->primary_buffer.begin(), this->primary_buffer.end(), idx), this->primary_buffer.end());
-    } else { // remove from second buffer
-        this->secondary_buffer.erase(std::remove(this->secondary_buffer.begin(), this->secondary_buffer.end(), idx), this->secondary_buffer.end());
-    }
-}
-
-/**
- * @brief      Gets the position primary buffer.
- *
- * @return     The position primary buffer.
- */
-QVector3D Structure::get_position_primary_buffer() const {
-    if(this->primary_buffer.size() == 0) {
-        throw std::runtime_error("No atoms in primary buffer. This exception should not be thrown. Please file an issue.");
-    }
-
-    QVector3D ctr(0.0, 0.0, 0.0);
-    for(unsigned int idx : this->primary_buffer) {
-        if(idx >= this->get_nr_atoms()) {
-            ctr += this->atoms_expansion[idx - this->get_nr_atoms()].get_pos_qtvec();
-        } else {
-            ctr += this->atoms[idx].get_pos_qtvec();
-        }
-    }
-    ctr /= (float)this->primary_buffer.size();
-
-    return ctr;
-}
-
-/**
- * @brief      Gets the position secondary buffer.
- *
- * @return     The position secondary buffer.
- */
-QVector3D Structure::get_position_secondary_buffer() const {
-    if(this->secondary_buffer.size() == 0) {
-        throw std::logic_error("No atoms in secondary buffer. This exception should not be thrown. Please file an issue.");
-    }
-
-    QVector3D ctr(0.0, 0.0, 0.0);
-    for(unsigned int idx : this->secondary_buffer) {
-        if(idx >= this->get_nr_atoms()) {
-            ctr += this->atoms_expansion[idx - this->get_nr_atoms()].get_pos_qtvec();
-        } else {
-            ctr += this->atoms[idx].get_pos_qtvec();
-        }
-    }
-    ctr /= (float)this->secondary_buffer.size();
-
-    return ctr;
-}
-
-/**
- * @brief      Clear the selection_buffers
- */
-void Structure::clear_selection() {
-    for(unsigned int idx : this->primary_buffer) {
-        if(idx >= this->get_nr_atoms()) {
-            this->atoms_expansion[idx - this->get_nr_atoms()].select = 0;
-        } else {
-            this->atoms[idx].select = 0;
-        }
-    }
-
-    for(unsigned int idx : this->secondary_buffer) {
-        if(idx >= this->get_nr_atoms()) {
-            this->atoms_expansion[idx - this->get_nr_atoms()].select = 0;
-        } else {
-            this->atoms[idx].select = 0;
-        }
-    }
-
-    this->primary_buffer.clear();
-    this->secondary_buffer.clear();
-}
-
-/**
- * @brief      Select all atoms
- */
-void Structure::select_all_atoms() {
-    // clear buffers
-    this->clear_selection();
-
-    // fill primary buffer with all atoms in the unit cell
-    for(unsigned int i=0; i<this->get_nr_atoms(); i++) {
-        this->atoms[i].select_atom();
-        this->primary_buffer.push_back(i);
-    }
-}
-
-/**
- * @brief      Invert the selection
- */
-void Structure::invert_selection() {
-    // make copy of primary selection
-    auto list = this->primary_buffer;
-
-    this->select_all_atoms();
-
-    for(unsigned int idx : list) {
-        this->atoms[idx].select = 0;
-        this->primary_buffer.erase(std::remove(this->primary_buffer.begin(), this->primary_buffer.end(), idx), this->primary_buffer.end());
-    }
-}
-
-/**
- * @brief      Set frozen
- */
-void Structure::set_frozen() {
-    for(unsigned int idx : this->primary_buffer) {
-        for(unsigned int j=0; j<3; j++) {
-            this->atoms[idx].selective_dynamics[j] = false;
-        }
-    }
-}
-
-/**
- * @brief      Set frozen
- */
-void Structure::set_unfrozen() {
-    for(unsigned int idx : this->primary_buffer) {
-        for(unsigned int j=0; j<3; j++) {
-            this->atoms[idx].selective_dynamics[j] = true;
-        }
-    }
-}
-
-/**
- * @brief      Get a string containing current selection data
- *
- * @return     The selection string.
- */
-QString Structure::get_selection_string() const {
-    QString str;
-
-    str += "<b><font color=\"#43f7b5\">P: </font></b>";
-    QVector3D ppos;
-    try {
-        ppos = this->get_position_primary_buffer();
-        str += QString("(");
-        for(int idx : this->primary_buffer) {
-            str += QString("#%1,").arg(idx+1);
-        }
-        str.remove(str.length()-1, str.length());
-        str += QString("); ");
-        str += QString("%L1 atoms (%2; %3; %4)<br>").arg(this->primary_buffer.size())
-            .arg(QString::number(ppos[0], 'f', 2))
-            .arg(QString::number(ppos[1], 'f', 2))
-            .arg(QString::number(ppos[2], 'f', 2));
-    } catch(const std::exception& e) {
-        str += QString("0 atoms<br>");
-    }
-
-    str += "<b><font color=\"#ec73ff\">S: </font></b>";
-    QVector3D spos;
-    try {
-        spos = this->get_position_secondary_buffer();
-        str += QString("(");
-        for(int idx : this->secondary_buffer) {
-            str += QString("#%1,").arg(idx+1);
-        }
-        str.remove(str.length()-1, str.length());
-        str += QString("); ");
-        str += QString("%L1 atoms (%2; %3; %4)").arg(this->secondary_buffer.size())
-            .arg(QString::number(spos[0], 'f', 2))
-            .arg(QString::number(spos[1], 'f', 2))
-            .arg(QString::number(spos[2], 'f', 2));
-    } catch(const std::exception& e) {
-        str += QString("0 atoms");
-    }
-
-    return str;
 }
 
 /**
@@ -456,91 +187,6 @@ void Structure::count_elements() {
             this->element_types.emplace(atomname, 1);
         }
     }
-}
-
-/**
- * @brief      Construct the bonds
- */
-void Structure::construct_bonds() {
-    this->bonds.clear();
-
-    for(unsigned int i=0; i<this->atoms.size(); i++) {
-        const auto& atom1 = this->atoms[i];
-        for(unsigned int j=i+1; j<this->atoms.size(); j++) {
-            const auto& atom2 = this->atoms[j];
-            double maxdist2 = AtomSettings::get().get_bond_distance(atom1.atnr, atom2.atnr);
-
-            double dist2 = atom1.dist(atom2);
-
-            // check if atoms are bonded
-            if(dist2 < maxdist2) {
-                this->bonds.emplace_back(atom1, atom2);
-            }
-        }
-    }
-}
-
-/**
- * @brief      Expand unit cell
- */
-void Structure::build_expansion() {
-    this->atoms_expansion.clear();
-
-    VectorPosition p;
-    for(int z=-1; z<=1; z++) {
-        p[2] = z;
-        for(int y=-1; y<=1; y++) {
-            p[1] = y;
-            for(int x=-1; x<=1; x++) {
-                p[0] = x;
-                if(!(x == 0 && y == 0 && z == 0)) {
-                    VectorPosition dp = this->unitcell.transpose() * p;
-                    for(const auto& atom : this->atoms) {
-                        unsigned int atomtype = 0;
-                        if(z != 0) {
-                            atomtype |= (1 << ATOM_EXPANSION_Z);
-                        }
-
-                        if(x != 0 || y != 0) {
-                            atomtype |= (1 << ATOM_EXPANSION_XY);
-                        }
-
-                        this->atoms_expansion.emplace_back(atom.atnr, atom.x, atom.y, atom.z, atomtype);
-                        this->atoms_expansion.back().translate(dp[0], dp[1], dp[2]);
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * @brief      Transpose single atom
- *
- * @param[in]  idx            Atom index
- * @param[in]  transposition  The transposition
- */
-void Structure::transpose_atom(unsigned int idx, const QMatrix4x4& transposition) {
-    QMatrix4x4 unitcellmatrix(this->get_matrix3x3(this->unitcell));
-    auto pos = this->atoms[idx].get_pos_qtvec();
-    QVector3D newpos = transposition.map(pos);
-
-    // convert to direct coordinates and replace atom within the unitcell
-    QVector3D direct = unitcellmatrix.transposed().inverted().map(newpos);
-    for(unsigned int i=0; i<3; i++) {
-        direct[i] = std::fmod(direct[i], 1.0f);
-        if(direct[i] < 0.0f) {
-            direct[i] += 1.0f;
-        }
-    }
-
-    // calculate back to cartesian coordinates
-    newpos = unitcellmatrix.transposed().map(direct);
-
-    // update atom coordinates
-    this->atoms[idx].x = newpos[0];
-    this->atoms[idx].y = newpos[1];
-    this->atoms[idx].z = newpos[2];
 }
 
 /**

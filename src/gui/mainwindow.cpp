@@ -184,9 +184,9 @@ void MainWindow::toggle_rotation() {
  * @brief Perform integration step update call
  */
  void MainWindow::integration_step() {
-    // this->anaglyph_widget->set_particle_positions(this->ljsim->get_positions());
-    // this->anaglyph_widget->set_particle_velocities(this->ljsim->get_velocities());
-    // this->anaglyph_widget->update();
+    this->anaglyph_widget->get_structure()->set_particle_positions(this->ljsim->get_positions());
+    this->anaglyph_widget->get_structure()->set_particle_velocities(this->ljsim->get_velocities());
+    this->anaglyph_widget->update();
 }
 
 /**
@@ -204,15 +204,18 @@ void MainWindow::slot_transmit_velocities() {
     this->ljsim = std::make_shared<LennardJonesSimulation>(params);
     auto positions = this->ljsim->get_positions();
     auto dimensions = this->ljsim->get_dims();
-    // this->anaglyph_widget->set_unitcell_scale(dimensions[0]);
-    // this->anaglyph_widget->set_particle_positions(positions);
-    // this->anaglyph_widget->set_particle_velocities(this->ljsim->get_velocities());
 
     if(this->graph_widget != nullptr) {
         qDebug() << "Resetting graphs";
         this->graph_widget->reset_graphs();
     }
     this->graph_widget->set_params(params->get_param<double>("kT"), params->get_param<double>("mass"), this->ljsim->get_velocities().size());
+
+    // build structure and link it to anaglyph widget
+    auto struc = std::make_shared<Structure>(MatrixUnitcell::Identity() * dimensions[0]);
+    struc->set_particle_positions(positions);
+    struc->set_particle_velocities(this->ljsim->get_velocities());
+    this->anaglyph_widget->set_structure(struc);
 }
 
 /**

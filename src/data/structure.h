@@ -30,8 +30,6 @@
 #include "atom_settings.h"
 #include "matrixmath.h"
 #include "atom.h"
-#include "bond.h"
-#include "fragment.h"
 
 /**
  * @brief      This class describes a chemical structure.
@@ -40,22 +38,13 @@ class Structure {
 
 private:
     std::vector<Atom> atoms;            // atoms in the structure
-    std::vector<Bond> bonds;            // bonds between the atoms
 
     double energy = 0.0;                // energy of the structure (if known, zero otherwise)
-    std::vector<QVector3D> forces;      // forces on the atoms (if known, empty array otherwise)
-
-    std::vector<Atom> atoms_expansion;  // atoms in the unit cell expansion
-    std::vector<Bond> bonds_expansion;  // bonds in the unit cell expansion
 
     MatrixUnitcell unitcell;            // matrix describing the unit cell
     std::vector<double> radii;          // radii of the atoms
 
     std::unordered_map<std::string, unsigned int> element_types;    // elements present in the structure
-
-    // atom selection buffers
-    std::vector<unsigned int> primary_buffer;   // primary selection buffer
-    std::vector<unsigned int> secondary_buffer; // secondary selection buffer
 
 public:
     /**
@@ -66,37 +55,17 @@ public:
     /**
      * @brief      Constructs a new instance.
      */
-    Structure(const Fragment& fragment);
-
-    /**
-     * @brief      Constructs a new instance.
-     */
     Structure(unsigned int elnr);
 
     /**
-     * @brief      Sets the energy.
-     *
-     * @param[in]  _energy  The energy
+     * Set positions
      */
-    inline void set_energy(double _energy) {
-        this->energy = _energy;
-    }
+    void set_particle_positions(const std::vector<glm::dvec3>& _positions);
 
     /**
-     * @brief      Gets the energy.
-     *
-     * @return     The energy.
+     * Set positions
      */
-    double get_energy() const {
-        return this->energy;
-    }
-
-    /**
-     * @brief      Gets the root mean square force
-     *
-     * @return     The root mean square force.
-     */
-    double get_rms_force() const;
+     void set_particle_velocities(const std::vector<glm::dvec3>& _velocities);
 
     /**
      * @brief      Get all atoms from the structure
@@ -108,33 +77,6 @@ public:
     }
 
     /**
-     * @brief      Get all bonds from the structure
-     *
-     * @return     The atoms.
-     */
-    inline const auto& get_bonds() const {
-        return this->bonds;
-    }
-
-    /**
-     * @brief      Get all atoms from the structure
-     *
-     * @return     The atoms.
-     */
-    inline const auto& get_atoms_expansion() const {
-        return this->atoms_expansion;
-    }
-
-    /**
-     * @brief      Get all bonds from the structure
-     *
-     * @return     The atoms.
-     */
-    inline const auto& get_bonds_expansion() const {
-        return this->bonds_expansion;
-    }
-
-    /**
      * @brief      Get specific atom
      *
      * @param[in]  idx   The index
@@ -143,17 +85,6 @@ public:
      */
     inline const Atom& get_atom(unsigned int idx) const {
         return this->atoms[idx];
-    }
-
-    /**
-     * @brief      Get specific bond
-     *
-     * @param[in]  idx   The index
-     *
-     * @return     The bond.
-     */
-    inline const Bond& get_bond(unsigned int idx) const {
-        return this->bonds[idx];
     }
 
     /**
@@ -187,59 +118,12 @@ public:
     void add_atom(unsigned int atnr, double x, double y, double z);
 
     /**
-     * @brief      Add an atom to the structure including forces
-     *
-     * @param[in]  atnr  Atom number
-     * @param[in]  x     x coordinate
-     * @param[in]  y     y coordinate
-     * @param[in]  z     z coordinate
-     * @param[in]  fx    force in x direction
-     * @param[in]  fy    force in y direction
-     * @param[in]  fz    force in z direction
-     */
-    void add_atom(unsigned int atnr, double x, double y, double z, double fx, double fy, double fz);
-
-    /**
-     * @brief      Add an atom to the structure including forces
-     *
-     * @param[in]  atnr  Atom number
-     * @param[in]  x     x coordinate
-     * @param[in]  y     y coordinate
-     * @param[in]  z     z coordinate
-     * @param[in]  sx    Selective dynamics x direction
-     * @param[in]  sy    Selective dynamics y direction
-     * @param[in]  sz    Selective dynamics z direction
-     */
-    void add_atom(unsigned int atnr, double x, double y, double z, bool sx, bool sy, bool sz);
-
-    /**
-     * @brief      Delete atoms in the primary buffer
-     */
-    void delete_atoms();
-
-    /**
-     * @brief      Commits a transposition.
-     *
-     * @param[in]  transposition  The transposition
-     */
-    void commit_transposition(const QMatrix4x4& transposition);
-
-    /**
      * @brief      Gets the total number of atoms.
      *
      * @return     The number of atoms
      */
     inline size_t get_nr_atoms() const {
         return this->atoms.size();
-    }
-
-    /**
-     * @brief      Gets the total number of bonds.
-     *
-     * @return     The number of bonds
-     */
-    inline size_t get_nr_bonds() const {
-        return this->bonds.size();
     }
 
     ~Structure() {
@@ -283,77 +167,6 @@ public:
      */
     QVector3D get_center_vector() const;
 
-    /**
-     * @brief      Select atom by idx
-     *
-     * @param[in]  idx   The index
-     */
-    void select_atom(unsigned int idx);
-
-    /**
-     * @brief      Gets the nr atoms in the primary buffer.
-     *
-     * @return     The nr atoms primary buffer.
-     */
-    inline size_t get_nr_atoms_primary_buffer() const {
-        return this->primary_buffer.size();
-    }
-
-    /**
-     * @brief      Gets the nr atoms in the secondary buffer.
-     *
-     * @return     The nr atoms secondary buffer.
-     */
-    inline size_t get_nr_atoms_secondary_buffer() const {
-        return this->secondary_buffer.size();
-    }
-
-    /**
-     * @brief      Gets the position primary buffer.
-     *
-     * @return     The position primary buffer.
-     */
-    QVector3D get_position_primary_buffer() const;
-
-    /**
-     * @brief      Gets the position secondary buffer.
-     *
-     * @return     The position secondary buffer.
-     */
-    QVector3D get_position_secondary_buffer() const;
-
-    /**
-     * @brief      Clear the selection_buffers
-     */
-    void clear_selection();
-
-    /**
-     * @brief      Select all atoms
-     */
-    void select_all_atoms();
-
-    /**
-     * @brief      Select all atoms
-     */
-    void invert_selection();
-
-    /**
-     * @brief      Toggle frozen
-     */
-    void set_frozen();
-
-    /**
-     * @brief      Set unfrozen
-     */
-    void set_unfrozen();
-
-    /**
-     * @brief      Get a string containing current selection data
-     *
-     * @return     The selection string.
-     */
-    QString get_selection_string() const;
-
 private:
     /**
      * @brief      Count the number of elements
@@ -364,19 +177,6 @@ private:
      * @brief      Construct the bonds
      */
     void construct_bonds();
-
-    /**
-     * @brief      Expand unit cell
-     */
-    void build_expansion();
-
-    /**
-     * @brief      Transpose single atom
-     *
-     * @param[in]  idx            Atom index
-     * @param[in]  transposition  The transposition
-     */
-    void transpose_atom(unsigned int idx, const QMatrix4x4& transposition);
 
     /**
      * @brief      Gets the unitcell matrix.

@@ -35,9 +35,9 @@ class Atom {
 public:
     unsigned int atnr;
     double x,y,z;
-    unsigned int atomtype;
-    unsigned int select = 0;
-    std::array<bool, 3> selective_dynamics = {true, true, true};
+    double vx,vy,vz;
+
+    Atom();
 
     Atom(unsigned int _atnr, double _x, double _y, double _z, unsigned int _atomtype = (1 << ATOM_CENTRAL_UNITCELL));
 
@@ -93,11 +93,6 @@ public:
         this->y += dy;
         this->z += dz;
     }
-
-    /**
-     * @brief      Select this atom
-     */
-    void select_atom();
 
 private:
 };

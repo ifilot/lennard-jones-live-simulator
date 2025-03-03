@@ -20,14 +20,18 @@
 
 #include "atom.h"
 
+Atom::Atom() {
+    atnr = 0;
+    x = 0;
+    y = 0;
+    z = 0;
+}
+
 Atom::Atom(unsigned int _atnr, double _x, double _y, double _z, unsigned int _atomtype) :
 atnr(_atnr),
 x(_x),
 y(_y),
-z(_z),
-atomtype(_atomtype) {
-
-}
+z(_z) {}
 
 /**
  * @brief      Distance between two atoms
@@ -51,12 +55,4 @@ double Atom::dist2(const Atom& other) const {
     return (this->x - other.x) * (this->x - other.x) +
            (this->y - other.y) * (this->y - other.y) +
            (this->z - other.z) * (this->z - other.z);
-}
-
-/**
- * @brief      Select this atom
- */
-void Atom::select_atom() {
-    select++;
-    select = select % 3;
 }

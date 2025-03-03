@@ -169,27 +169,13 @@ void AnaglyphWidget::draw_structure() {
 }
 
 /**
- * @brief      Set a new structure
- *
- * @param[in]  _structure  The structure
- */
-void AnaglyphWidget::set_structure(const std::shared_ptr<Structure>& _structure) {
-    this->structure = _structure;
-    this->user_action->set_structure(structure);
-    VectorPosition z = VectorPosition::Ones(3);
-    auto p = structure->get_unitcell() * z * 1.5;
-    this->scene->camera_position = QVector3D(0.0, -p.norm(), 0.0);
-    this->update();
-}
-
-/**
  * @brief      Set a (new) structure
  *
  * Do not modify camera settings
  *
  * @param[in]  _structure  The structure
  */
-void AnaglyphWidget::set_structure_conservative(const std::shared_ptr<Structure>& _structure) {
+void AnaglyphWidget::set_structure(const std::shared_ptr<Structure>& _structure) {
     this->structure = _structure;
     this->user_action->set_structure(structure);
     this->update();
@@ -235,33 +221,6 @@ void AnaglyphWidget::mousePressEvent(QMouseEvent *event) {
         // store positions of mouse
         this->m_lastPos = event->pos();
     }
-
-    // handle selection
-    if (event->buttons() & Qt::RightButton) {
-        QVector3D ray_origin;
-        QVector3D ray_direction;
-
-        this->scene->calculate_ray(event->pos(), &ray_origin, &ray_direction);
-        int selected_atom = this->get_atom_raycast(ray_origin, ray_direction);
-        if(selected_atom != -1) {
-            this->structure->select_atom(selected_atom);
-            this->update();
-        }
-
-        emit(signal_selection_message(this->structure->get_selection_string()));
-    }
-
-    #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        // custom menu
-        if (event->buttons() & Qt::RightButton && event->modifiers() & Qt::ControlModifier) {
-            this->custom_menu_requested(event->globalPosition().toPoint());
-        }
-    #else
-        // custom menu
-        if (event->buttons() & Qt::RightButton && event->modifiers() & Qt::ControlModifier) {
-            this->custom_menu_requested(event->globalPos());
-        }
-    #endif
 }
 
 /**
@@ -509,83 +468,6 @@ void AnaglyphWidget::reset_matrices() {
     this->scene->rotation_matrix.rotate(20.0, QVector3D(1,0,0));
     this->scene->rotation_matrix.rotate(30.0, QVector3D(0,0,1));
     this->scene->arcball_rotation.setToIdentity();
-}
-
-/**
- * @brief      get the closest atom from a raycast
- *
- * @param[in]  ray_origin  The ray origin
- * @param[in]  ray_vector  The ray vector
- * @param[in]  rot         rotation matrix
- *
- * Important: the coordinate system is set-up in such a way that the camera is always fixed on the negative y-axis.
- *            the structure is rotated and the camera is always locked to the center of the coordinate system
- *            atoms which are closest, thus have - from the perspective of the camera - the smallest y values
- *
- * @return     the atom, -1 if no atom is hit
- */
-int AnaglyphWidget::get_atom_raycast(const QVector3D& ray_origin, const QVector3D& ray_vector) {
-    int selected_atom = -1;
-    float y = 1000;
-
-    // unsigned int pickbit = this->calculate_bitset(bit);
-
-    auto vec_ctr = this->structure->get_center_vector();
-
-    QMatrix4x4 model;
-
-    for(unsigned int i=0; i<this->structure->get_nr_atoms(); i++) {
-        const Atom& atom = this->structure->get_atom(i);
-
-        model.setToIdentity();
-        model *= this->scene->rotation_matrix;
-        model.translate(vec_ctr);
-        QVector3D pos = model.map(atom.get_pos_qtvec());
-
-        float radius = AtomSettings::get().get_atom_radius_from_elnr(atom.atnr);
-        float b = QVector3D::dotProduct(ray_vector, ray_origin - pos);
-        float c = QVector3D::dotProduct(ray_origin - pos, ray_origin - pos) - (radius * radius);
-
-        if(b*b >= c ) { // hit
-            if(pos[1] < y) {
-                selected_atom = i;
-                y = pos[1];
-            }
-        }
-    }
-
-    for(unsigned int i=0; i<this->structure->get_atoms_expansion().size(); i++) {
-        // perform translation call
-        const auto& atom = structure->get_atoms_expansion()[i];
-
-        if((this->flag_show_periodicity_xy && this->flag_show_periodicity_z) && (atom.atomtype & (1 << ATOM_EXPANSION_XY) || atom.atomtype & (1 < ATOM_EXPANSION_Z))) {
-            // do nothing
-        } else if(this->flag_show_periodicity_xy && atom.atomtype & (1 << ATOM_EXPANSION_XY) && !(atom.atomtype & (1 << ATOM_EXPANSION_Z))) {
-            // do nothing
-        } else if(this->flag_show_periodicity_z && atom.atomtype & (1 << ATOM_EXPANSION_Z) && !(atom.atomtype & (1 << ATOM_EXPANSION_XY))) {
-            // do nothing
-        } else {
-            continue;
-        }
-
-        model.setToIdentity();
-        model *= this->scene->arcball_rotation * this->scene->rotation_matrix;
-        model.translate(vec_ctr);
-        QVector3D pos = model.map(atom.get_pos_qtvec());
-
-        float radius = AtomSettings::get().get_atom_radius_from_elnr(atom.atnr);
-        float b = QVector3D::dotProduct(ray_vector, ray_origin - pos);
-        float c = QVector3D::dotProduct(ray_origin - pos, ray_origin - pos) - (radius * radius);
-
-        if(b*b >= c ) { // hit
-            if(pos[1] < y) {
-                selected_atom = i + this->structure->get_nr_atoms();
-                y = pos[1];
-            }
-        }
-    }
-
-    return selected_atom;
 }
 
 /**

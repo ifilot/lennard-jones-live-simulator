@@ -58,19 +58,7 @@ StructureRenderer::StructureRenderer(const std::shared_ptr<Scene>& _scene,
 void StructureRenderer::draw(const Structure *structure, bool periodicity_xy, bool periodicity_z) {
     this->draw_atoms_regular(structure);
 
-    if(periodicity_xy || periodicity_z) {
-        this->draw_atoms_expansion(structure, periodicity_xy, periodicity_z);
-    }
-
-    if(structure->get_nr_atoms() < 2000) {
-        this->draw_bonds(structure);
-    }
-
-    if(this->flag_draw_unitcell) {
-        this->draw_unitcell(structure);
-    }
-    this->draw_movement_lines(structure);
-    this->draw_movement_plane(structure);
+    //this->draw_unitcell(structure);
 }
 
 /**
@@ -160,17 +148,6 @@ void StructureRenderer::draw_coordinate_axes() {
 }
 
 /**
- * @brief      Draws the atoms in the periodicity expansions.
- *
- * @param[in]  structure       The structure
- * @param[in]  periodicity_xy  The periodicity xy
- * @param[in]  periodicity_z   The periodicity z
- */
-void StructureRenderer::draw_atoms_expansion(const Structure* structure, bool periodicity_xy, bool periodicity_z) {
-    this->draw_atoms(structure->get_atoms_expansion(), structure, periodicity_xy, periodicity_z);
-}
-
-/**
  * @brief      Draws atoms.
  *
  * @param[in]  atoms           The atoms
@@ -197,48 +174,14 @@ void StructureRenderer::draw_atoms(const std::vector<Atom>& atoms, const Structu
     auto ctr_vector = structure->get_center_vector();
 
     for(const Atom& atom : atoms) {
-        bool expansion_atom = false;
-
-        // settings per atom type
-        if(atom.atomtype & (1 << ATOM_CENTRAL_UNITCELL)) {
-            // regular atom
-        } else if((periodicity_xy && periodicity_z) && (atom.atomtype & (1 << ATOM_EXPANSION_XY) || atom.atomtype & (1 < ATOM_EXPANSION_Z))) {
-            expansion_atom = true;
-        } else if(periodicity_xy && atom.atomtype & (1 << ATOM_EXPANSION_XY) && !(atom.atomtype & (1 << ATOM_EXPANSION_Z))) {
-            expansion_atom = true;
-        } else if(periodicity_z && atom.atomtype & (1 << ATOM_EXPANSION_Z) && !(atom.atomtype & (1 << ATOM_EXPANSION_XY))) {
-            expansion_atom = true;
-        } else {
-            // ignore this atom
-            continue;
-        }
-
         // set the color of the atom
         auto col = AtomSettings::get().get_atom_color_qvector(AtomSettings::get().get_name_from_elnr(atom.atnr));
-        if(expansion_atom) { // darken atom if it belongs to a periodicity expansion
-            col = this->mix(col, QVector3D(1.0f - col[0], 1.0f - col[1], 1.0f - col[2]), 0.4);
-        } else {
-            for(unsigned int j=0; j<3; j++) {
-                if(!atom.selective_dynamics[j]) {
-                    col = this->darken(col, 0.5);
-                    break;
-                }
-            }
-        }
-
-        if(atom.select != 0) { // highlight atom if it is selected
-            col = this->lighten(col, 0.1);
-        }
-
         double radius = AtomSettings::get().get_atom_radius_from_elnr(atom.atnr);
 
         // build model matrix
         model.setToIdentity();
         model *= (this->scene->arcball_rotation) * (this->scene->rotation_matrix);
         model.translate(ctr_vector);        // position the center of the unitcell at the origin
-        if(atom.select == 1) {
-            model *= this->scene->transposition;
-        }
         model.translate(atom.get_pos_qtvec());
         model.scale(radius);
 
@@ -280,27 +223,9 @@ void StructureRenderer::draw_atoms_silhouette(const std::vector<Atom>& atoms, co
 
     float counter = 10.0f;
     for(const Atom& atom : atoms) {
-        if(!(atom.atomtype & (1 << ATOM_CENTRAL_UNITCELL))) {
-            continue;
-        }
 
         auto col = QVector3D(0.0f, 0.0f, 0.0f);
-        switch(atom.select) {
-            case 0:
-                col = QVector3D(0.0f, 0.0f, 0.0f);
-            break;
-            case 1:
-                counter += 1.0f;
-                col = QVector3D(counter/255.f, 0.0f, 0.25f);
-            break;
-            case 2:
-                counter += 1.0f;
-                col = QVector3D(counter/255.f, 0.f, 0.50f);
-            break;
-            default:
-                col = QVector3D(0.0f, 0.0f, 0.0f);
-            break;
-        }
+        col = QVector3D(0.0f, 0.0f, 0.0f);
 
         double radius = AtomSettings::get().get_atom_radius_from_elnr(atom.atnr);
 
@@ -308,9 +233,6 @@ void StructureRenderer::draw_atoms_silhouette(const std::vector<Atom>& atoms, co
         model.setToIdentity();
         model *= (this->scene->arcball_rotation) * (this->scene->rotation_matrix);
         model.translate(ctr_vector);        // position the center of the unitcell at the origin
-        if(atom.select == 1) {
-            model *= this->scene->transposition;
-        }
         model.translate(atom.get_pos_qtvec());
         model.scale(radius);
 
@@ -326,85 +248,6 @@ void StructureRenderer::draw_atoms_silhouette(const std::vector<Atom>& atoms, co
     }
 
     this->vao_sphere.release();
-    model_shader->release();
-}
-
-/**
- * @brief      Draws bonds.
- *
- * @param[in]  structure  The structure
- */
-void StructureRenderer::draw_bonds(const Structure* structure) {
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-
-    this->vao_cylinder.bind();
-
-    ShaderProgram *model_shader = this->shader_manager->get_shader_program("model_shader");
-    model_shader->bind();
-
-    QMatrix4x4 model;
-    QMatrix4x4 mvp;
-
-    // set general properties
-    model_shader->set_uniform("view", this->scene->view);
-    model_shader->set_uniform("lightpos", QVector3D(0,-1000,1));
-
-    // get the vector that positions the unitcell at the origin
-    auto ctr_vector = structure->get_center_vector();
-
-    for(unsigned int i=0; i<structure->get_nr_bonds(); i++) {
-        const Bond& bond = structure->get_bond(i);
-
-        QVector3D col;
-
-        model.setToIdentity();
-        model *= (this->scene->arcball_rotation) * (this->scene->rotation_matrix);
-        model.translate(ctr_vector);        // position the center of the unitcell at the origin
-        model.translate(bond.atom1.get_pos_qtvec());
-        model.rotate(qRadiansToDegrees(bond.angle), bond.axis);
-        model.scale(QVector3D(0.15, 0.15, bond.length * 0.5));
-
-        QMatrix4x4 mvp = (this->scene->projection) * (this->scene->view) * model;
-
-        model_shader->set_uniform("mvp", mvp);
-        model_shader->set_uniform("model", model);
-        col = AtomSettings::get().get_atom_color_qvector(AtomSettings::get().get_name_from_elnr(bond.atom1.atnr));
-        for(unsigned int j=0; j<3; j++) {
-            if(!bond.atom1.selective_dynamics[j]) {
-                col = this->darken(col, 0.5);
-                break;
-            }
-        }
-        model_shader->set_uniform("color", col);
-
-        // draw bond
-        f->glDrawElements(GL_TRIANGLES, this->cylinder_indices.size(), GL_UNSIGNED_INT, 0);
-
-        model.setToIdentity();
-        model *= (this->scene->arcball_rotation) * (this->scene->rotation_matrix);
-        model.translate(ctr_vector);        // position the center of the unitcell at the origin
-        model.translate(bond.atom1.get_pos_qtvec() + (bond.direction * bond.length * 0.5));
-        model.rotate(qRadiansToDegrees(bond.angle), bond.axis);
-        model.scale(QVector3D(0.15, 0.15, bond.length * 0.5));
-
-        mvp = (this->scene->projection) * (this->scene->view) * model;
-
-        model_shader->set_uniform("mvp", mvp);
-        model_shader->set_uniform("model", model);
-        col = AtomSettings::get().get_atom_color_qvector(AtomSettings::get().get_name_from_elnr(bond.atom2.atnr));
-        for(unsigned int j=0; j<3; j++) {
-            if(!bond.atom2.selective_dynamics[j]) {
-                col = this->darken(col, 0.5);
-                break;
-            }
-        }
-        model_shader->set_uniform("color", col);
-
-        // draw bond
-        f->glDrawElements(GL_TRIANGLES, this->cylinder_indices.size(), GL_UNSIGNED_INT, 0);
-    }
-
-    this->vao_cylinder.release();
     model_shader->release();
 }
 
@@ -431,181 +274,6 @@ void StructureRenderer::draw_unitcell(const Structure* structure) {
     f->glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
     this->vao_unitcell.release();
     unitcell_shader->release();
-}
-
-/**
- * @brief      Draw movement lines
- *
- * @param[in]  structure  The structure
- */
-void StructureRenderer::draw_movement_lines(const Structure* structure) {
-    if(!(this->user_action->get_movement_action() == MovementAction::MOVEMENT_NONE ||
-         this->user_action->get_movement_action() == MovementAction::MOVEMENT_FREE)) {
-        QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-
-        ShaderProgram *unitcell_shader = this->shader_manager->get_shader_program("unitcell_shader");
-        unitcell_shader->bind();
-
-        QMatrix4x4 model = (this->scene->arcball_rotation) * (this->scene->rotation_matrix);
-        model.translate(structure->get_center_vector()); // position the center of the unitcell at the origin
-        QMatrix4x4 mvp = (this->scene->projection) * (this->scene->view) * model;
-        unitcell_shader->set_uniform("mvp", mvp);
-
-        this->vao_line.bind();
-
-        const QVector3D red(98.8f/100.0f, 20.8f/100.0f, 32.5f/100.0f);
-        const QVector3D green(54.9f/100.0f, 86.7f/100.0f, 0.0f);
-        const QVector3D blue(15.7f/100.0f, 60.0f/100.0f, 100.0f/100.0f);
-
-        // update vector elements
-        std::vector<QVector3D> data(3);
-        switch(this->user_action->get_movement_action()) {
-            case MovementAction::MOVEMENT_NONE:
-                // do nothing
-            break;
-            case MovementAction::MOVEMENT_FREE:
-                // do nothing
-            break;
-            case MovementAction::MOVEMENT_X:
-                data[0] = structure->get_position_primary_buffer() + QVector3D(-1000.f, 0.f, 0.f);
-                data[1] = structure->get_position_primary_buffer() + QVector3D(1000.f, 0.f, 0.f);
-                data[2] = red;
-            break;
-            case MovementAction::MOVEMENT_Y:
-                data[0] = structure->get_position_primary_buffer() + QVector3D(0.f, -1000.f, 0.f);
-                data[1] = structure->get_position_primary_buffer() + QVector3D(0.f, 1000.f, 0.f);
-                data[2] = green;
-            break;
-            case MovementAction::MOVEMENT_Z:
-                data[0] = structure->get_position_primary_buffer() + QVector3D(0.f, 0.f, -1000.f);
-                data[1] = structure->get_position_primary_buffer() + QVector3D(0.f, 0.f, 1000.f);
-                data[2] = blue;
-            break;
-            case MovementAction::MOVEMENT_FOCUS:
-                auto v1 = structure->get_position_primary_buffer();
-                auto v2 = structure->get_position_secondary_buffer();
-                auto v = (v2 - v1).normalized();
-                data[0] = v1 - 1000.f * v;
-                data[1] = v1 + 1000.f * v;
-                data[2] = QVector3D(1.0f, 1.0f, 1.0f);
-            break;
-        }
-
-        this->vbo_line[0].bind();
-        this->vbo_line[0].allocate(&data[0][0], 2 * 3 * sizeof(float));
-        unitcell_shader->set_uniform("color", data[2]);
-
-        f->glDrawElements(GL_LINES, 2, GL_UNSIGNED_INT, 0);
-        this->vao_line.release();
-        unitcell_shader->release();
-
-        return;
-    }
-
-    if(!(this->user_action->get_rotation_action() == RotationAction::ROTATION_NONE ||
-         this->user_action->get_rotation_action() == RotationAction::ROTATION_FREE)) {
-        QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-
-        ShaderProgram *unitcell_shader = this->shader_manager->get_shader_program("unitcell_shader");
-        unitcell_shader->bind();
-
-        QMatrix4x4 model = (this->scene->arcball_rotation) * (this->scene->rotation_matrix);
-        model.translate(structure->get_center_vector()); // position the center of the unitcell at the origin
-        QMatrix4x4 mvp = (this->scene->projection) * (this->scene->view) * model;
-        unitcell_shader->set_uniform("mvp", mvp);
-
-        this->vao_line.bind();
-
-        const QVector3D red(98.8f/100.0f, 20.8f/100.0f, 32.5f/100.0f);
-        const QVector3D green(54.9f/100.0f, 86.7f/100.0f, 0.0f);
-        const QVector3D blue(15.7f/100.0f, 60.0f/100.0f, 100.0f/100.0f);
-
-        // update vector elements
-        std::vector<QVector3D> data(3);
-        switch(this->user_action->get_rotation_action()) {
-            case RotationAction::ROTATION_NONE:
-                // do nothing
-            break;
-            case RotationAction::ROTATION_FREE:
-                // do nothing
-            break;
-            case RotationAction::ROTATION_X:
-                data[0] = structure->get_position_primary_buffer() + QVector3D(-1000.f, 0.f, 0.f);
-                data[1] = structure->get_position_primary_buffer() + QVector3D(1000.f, 0.f, 0.f);
-                data[2] = red;
-            break;
-            case RotationAction::ROTATION_Y:
-                data[0] = structure->get_position_primary_buffer() + QVector3D(0.f, -1000.f, 0.f);
-                data[1] = structure->get_position_primary_buffer() + QVector3D(0.f, 1000.f, 0.f);
-                data[2] = green;
-            break;
-            case RotationAction::ROTATION_Z:
-                data[0] = structure->get_position_primary_buffer() + QVector3D(0.f, 0.f, -1000.f);
-                data[1] = structure->get_position_primary_buffer() + QVector3D(0.f, 0.f, 1000.f);
-                data[2] = blue;
-            break;
-            case RotationAction::ROTATION_FOCUS:
-                auto v1 = structure->get_position_primary_buffer();
-                auto v2 = structure->get_position_secondary_buffer();
-                auto v = (v2 - v1).normalized();
-                data[0] = v1 - 1000.f * v;
-                data[1] = v1 + 1000.f * v;
-                data[2] = QVector3D(1.0f, 1.0f, 1.0f);
-            break;
-        }
-
-        this->vbo_line[0].bind();
-        this->vbo_line[0].allocate(&data[0][0], 2 * 3 * sizeof(float));
-        unitcell_shader->set_uniform("color", data[2]);
-
-        f->glDrawElements(GL_LINES, 2, GL_UNSIGNED_INT, 0);
-        this->vao_line.release();
-        unitcell_shader->release();
-
-        return;
-    }
-}
-
-/**
- * @brief      Draw movement plane
- *
- * @param[in]  structure  The structure
- */
-void StructureRenderer::draw_movement_plane(const Structure* structure) {
-    if(!(this->user_action->get_movement_action() == MovementAction::MOVEMENT_FREE)) {
-        return;
-    }
-
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-
-    ShaderProgram *plane_shader = this->shader_manager->get_shader_program("plane_shader");
-    plane_shader->bind();
-
-    QMatrix4x4 model = (this->scene->arcball_rotation) * (this->scene->rotation_matrix);
-    model.translate(structure->get_center_vector()); // position the center of the unitcell at the origin
-    QMatrix4x4 mvp = (this->scene->projection) * (this->scene->view) * model;
-    plane_shader->set_uniform("mvp", mvp);
-
-    this->vao_plane.bind();
-
-    // update vector elements
-    const float sz = 3.0;
-    std::vector<QVector3D> data(5);
-    QVector3D v1 = this->scene->rotation_matrix.inverted().map(QVector3D(1.0f, 0.0f, 0.0f));
-    QVector3D v2 = this->scene->rotation_matrix.inverted().map(QVector3D(0.0f, 0.0f, 1.0f));
-    data[0] = structure->get_position_primary_buffer() + sz * (-v1 - v2);
-    data[1] = structure->get_position_primary_buffer() + sz * (v1 - v2);
-    data[2] = structure->get_position_primary_buffer() + sz * (v1 + v2);
-    data[3] = structure->get_position_primary_buffer() + sz * (-v1 + v2);
-    data[4] = QVector3D(1.0f, 1.0f, 1.0f);
-
-    this->vbo_plane[0].bind();
-    this->vbo_plane[0].allocate(&data[0][0], 4 * 3 * sizeof(float));
-    plane_shader->set_uniform("color", data[4]);
-
-    f->glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-    this->vao_line.release();
-    plane_shader->release();
 }
 
 /**

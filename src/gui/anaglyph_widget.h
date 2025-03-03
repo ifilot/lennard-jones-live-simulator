@@ -46,7 +46,6 @@
 #include "shader_program_manager.h"
 #include "shader_program_types.h"
 #include "structure_renderer.h"
-#include "../data/structure_operator.h"
 #include "user_action.h"
 #include "scene.h"
 
@@ -111,6 +110,20 @@ private:
 
     std::shared_ptr<UserAction> user_action;        // object that stores current action of the user on a structure
 
+    const QVector<QVector4D> color_scheme = {
+        QVector4D(0x05 / 255.0f, 0x30 / 255.0f, 0x61 / 255.0f, 0xFF / 255.0f),
+        QVector4D(0x21 / 255.0f, 0x66 / 255.0f, 0xac / 255.0f, 0xFF / 255.0f),
+        QVector4D(0x43 / 255.0f, 0x93 / 255.0f, 0xc3 / 255.0f, 0xFF / 255.0f),
+        QVector4D(0x92 / 255.0f, 0xc5 / 255.0f, 0xde / 255.0f, 0xFF / 255.0f),
+        QVector4D(0xd1 / 255.0f, 0xe5 / 255.0f, 0xf0 / 255.0f, 0xFF / 255.0f),
+        QVector4D(0xf7 / 255.0f, 0xf7 / 255.0f, 0xf7 / 255.0f, 0xFF / 255.0f),
+        QVector4D(0xfd / 255.0f, 0xdb / 255.0f, 0xc7 / 255.0f, 0xFF / 255.0f),
+        QVector4D(0xf4 / 255.0f, 0xa5 / 255.0f, 0x82 / 255.0f, 0xFF / 255.0f),
+        QVector4D(0xd6 / 255.0f, 0x60 / 255.0f, 0x4d / 255.0f, 0xFF / 255.0f),
+        QVector4D(0xb2 / 255.0f, 0x18 / 255.0f, 0x2b / 255.0f, 0xFF / 255.0f),
+        QVector4D(0x67 / 255.0f, 0x00 / 255.0f, 0x1f / 255.0f, 0xFF / 255.0f)
+    };
+
 public:
     AnaglyphWidget(QWidget *parent = 0);
 
@@ -122,18 +135,11 @@ public:
     /**
      * @brief      Set a (new) structure
      *
-     * @param[in]  _structure  The structure
-     */
-    void set_structure(const std::shared_ptr<Structure>& _structure);
-
-    /**
-     * @brief      Set a (new) structure
-     *
      * Do not modify camera settings
      *
      * @param[in]  _structure  The structure
      */
-    void set_structure_conservative(const std::shared_ptr<Structure>& _structure);
+    void set_structure(const std::shared_ptr<Structure>& _structure);
 
     /**
      * @brief      Gets the structure.
@@ -272,17 +278,6 @@ private:
      * @brief      Reset rotation matrices
      */
     void reset_matrices();
-
-    /**
-     * @brief      get the closest atom from a raycast
-     *
-     * @param[in]  ray_origin  The ray origin
-     * @param[in]  ray_vector  The ray vector
-     * @param[in]  rot         rotation matrix
-     *
-     * @return     the atom, -1 if no atom is hit
-     */
-    int get_atom_raycast(const QVector3D& ray_origin, const QVector3D& ray_vector);
 
     /**
      * @brief      Regular draw call

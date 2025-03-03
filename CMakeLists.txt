@@ -35,14 +35,9 @@ add_executable(ljsim
     src/gui/logwindow.cpp
     src/data/atom_settings.cpp
     src/data/atom.cpp
-    src/data/bond.cpp
-    src/data/fragment.cpp
     src/data/model.cpp
     src/data/model_loader.cpp
     src/data/structure.cpp
-    src/data/structure_loader.cpp
-    src/data/structure_saver.cpp
-    src/data/structure_operator.cpp
     src/simulator/dialognewsimulation.cpp
     src/simulator/graphwidget.cpp
     src/simulator/lennardjonesparameters.cpp

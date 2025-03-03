@@ -30,9 +30,7 @@
 #include <QMessageBox>
 #include <QInputDialog>
 
-#include "../data/fragment.h"
 #include "../data/structure.h"
-#include "../data/structure_operator.h"
 #include "scene.h"
 
 // movement actions
@@ -68,11 +66,7 @@ private:
     RotationAction rotation_action = RotationAction::ROTATION_NONE;
     std::shared_ptr<Structure> structure;
     QVector3D translation_vector;
-
     std::shared_ptr<Scene> scene;
-    StructureOperator structure_operator;
-
-    std::unique_ptr<Fragment> fragment;
 
 public:
     /**
@@ -101,11 +95,6 @@ public:
      * @brief      Handle left mouse click action
      */
     void handle_left_mouse_click();
-
-    /**
-     * @brief Deselect all atoms
-     */
-    void deselect();
 
     /**
      * @brief      Sets the structure.
@@ -147,12 +136,6 @@ public:
     void set_camera_mode(int mode);
 
 public slots:
-    /**
-     * @brief      Sets the fragment.
-     *
-     * @param[in]  _fragment  The fragment
-     */
-    void set_fragment(const Fragment& _fragment);
 
 signals:
     /**
@@ -203,32 +186,4 @@ private:
      * @brief      Sets the cursor position.
      */
     void set_cursor_position();
-
-    /**
-     * @brief      Calculate the matrix by which the atoms will be transposed
-     */
-    void calculate_transposition_matrix();
-
-    /**
-     * @brief      Adds a fragment.
-     */
-    void add_fragment();
-
-    /**
-     * @brief      Calculate a movement projection vector for aligned movement
-     *
-     * @param[in]  vin   Input vector
-     *
-     * @return     Output vector
-     */
-    QVector3D project_movement_vector(const QVector3D& vin) const;
-
-    /**
-     * @brief      Calculate a rotation matrix
-     *
-     * @param[in]  angle  The angle
-     *
-     * @return     The transformation matrix in 3D space.
-     */
-    QMatrix4x4 project_rotation_matrix(float angle) const;
 };
