@@ -26,6 +26,7 @@
 #include <QDebug>
 #include <QMatrix4x4>
 #include <QtMath>
+#include <QTemporaryDir>
 
 #ifndef M_PI
     #define M_PI 3.14159265358979323846
@@ -142,36 +143,11 @@ public:
 
 private:
     /**
-     * @brief      Draws atoms.
-     *
-     * @param[in]  atoms           The atoms
-     * @param[in]  structure       The structure
-     * @param[in]  periodicity_xy  The periodicity xy
-     * @param[in]  periodicity_z   The periodicity z
-     */
-    void draw_atoms(const std::vector<Atom>& atoms, const Structure* structure, bool periodicity_xy = false, bool periodicity_z = false);
-
-    /**
-     * @brief      Draws silhouette of atoms.
-     *
-     * @param[in]  atoms           The atoms
-     * @param[in]  structure       The structure
-     */
-    void draw_atoms_silhouette(const std::vector<Atom>& atoms, const Structure* structure);
-
-    /**
      * @brief      Draws atoms in the regular unit cell.
      *
      * @param[in]  structure  The structure
      */
-    void draw_atoms_regular(const Structure* structure);
-
-    /**
-     * @brief      Draws bonds.
-     *
-     * @param[in]  structure  The structure
-     */
-    void draw_bonds(const Structure* structure);
+    void draw_atoms(const Structure* structure);
 
     /**
      * @brief      Draws the unitcell.

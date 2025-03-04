@@ -222,18 +222,19 @@ void MainWindow::slot_transmit_velocities() {
  void MainWindow::build_simulation(const std::shared_ptr<LennardJonesParameters>& params) {
     qDebug() << "Build new simulation";
     this->ljsim = std::make_shared<LennardJonesSimulation>(params);
-    auto positions = this->ljsim->get_positions();
-    auto dimensions = this->ljsim->get_dims();
 
     if(this->graph_widget != nullptr) {
         qDebug() << "Resetting graphs";
         this->graph_widget->reset_graphs();
     }
-    this->graph_widget->set_params(params->get_param<double>("kT"), params->get_param<double>("mass"), this->ljsim->get_velocities().size());
+    this->graph_widget->set_params(params->get_param<double>("kT"), 
+                                   params->get_param<double>("mass"), 
+                                   this->ljsim->get_velocities().size());
 
     // build structure and link it to anaglyph widget
-    auto struc = std::make_shared<Structure>(MatrixUnitcell::Identity() * dimensions[0]);
-    struc->set_particle_positions(positions);
+    qDebug() << "Build Structure";
+    auto struc = std::make_shared<Structure>(MatrixUnitcell::Identity() * this->ljsim->get_dims()[0]);
+    struc->set_particle_positions(this->ljsim->get_positions());
     struc->set_particle_velocities(this->ljsim->get_velocities());
     this->anaglyph_widget->set_structure(struc);
 }

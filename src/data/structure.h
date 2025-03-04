@@ -26,10 +26,9 @@
 #include <QGenericMatrix>
 #include <vector>
 #include <QString>
+#include <glm/glm.hpp>
 
-#include "atom_settings.h"
 #include "matrixmath.h"
-#include "atom.h"
 
 /**
  * @brief      This class describes a chemical structure.
@@ -37,14 +36,9 @@
 class Structure {
 
 private:
-    std::vector<Atom> atoms;            // atoms in the structure
-
-    double energy = 0.0;                // energy of the structure (if known, zero otherwise)
-
-    MatrixUnitcell unitcell;            // matrix describing the unit cell
-    std::vector<double> radii;          // radii of the atoms
-
-    std::unordered_map<std::string, unsigned int> element_types;    // elements present in the structure
+    std::vector<glm::dvec3> positions;
+    std::vector<glm::dvec3> velocities;
+    MatrixUnitcell unitcell;
 
 public:
     /**
@@ -68,23 +62,17 @@ public:
      void set_particle_velocities(const std::vector<glm::dvec3>& _velocities);
 
     /**
-     * @brief      Get all atoms from the structure
-     *
-     * @return     The atoms.
+     * Get positions
      */
-    inline const auto& get_atoms() const {
-        return this->atoms;
+    const auto& get_positions() const {
+        return this->positions;
     }
 
     /**
-     * @brief      Get specific atom
-     *
-     * @param[in]  idx   The index
-     *
-     * @return     The atom.
+     * Get velocities
      */
-    inline const Atom& get_atom(unsigned int idx) const {
-        return this->atoms[idx];
+    const auto& get_velocities() const {
+        return this->positions;
     }
 
     /**
@@ -96,64 +84,9 @@ public:
         return this->unitcell;
     }
 
-    /**
-     * @brief      Gets the atomic radius.
-     *
-     * @param[in]  idx   The index
-     *
-     * @return     The radius.
-     */
-    inline double get_radius(unsigned int idx) const {
-        return this->radii[idx];
-    }
-
-    /**
-     * @brief      Add an atom to the structure
-     *
-     * @param[in]  atnr  Atom number
-     * @param[in]  x     x coordinate
-     * @param[in]  y     y coordinate
-     * @param[in]  z     z coordinate
-     */
-    void add_atom(unsigned int atnr, double x, double y, double z);
-
-    /**
-     * @brief      Gets the total number of atoms.
-     *
-     * @return     The number of atoms
-     */
-    inline size_t get_nr_atoms() const {
-        return this->atoms.size();
-    }
-
-    ~Structure() {
-        qDebug() << "Deleting structure ("
-                 << QString("0x%1").arg((size_t)this, 0, 16)
-                 << "; " << this->atoms.size() << " atoms ).";
-    }
-
     //********************************************
     // [END BLOCK] DATA GETTERS AND SETTERS
     //********************************************
-
-    /**
-     * @brief      Center the structure at the origin
-     */
-    void center();
-
-    /**
-     * @brief      Get the largest distance from the origin
-     *
-     * @return     The largest distance.
-     */
-    QVector3D get_largest_distance() const;
-
-    /**
-     * @brief      Gets the elements in this structure as a string
-     *
-     * @return     String holding comma seperated list of elements
-     */
-    std::string get_elements_string() const;
 
     /**
      * @brief      Update data based on contents;
@@ -168,16 +101,6 @@ public:
     QVector3D get_center_vector() const;
 
 private:
-    /**
-     * @brief      Count the number of elements
-     */
-    void count_elements();
-
-    /**
-     * @brief      Construct the bonds
-     */
-    void construct_bonds();
-
     /**
      * @brief      Gets the unitcell matrix.
      *

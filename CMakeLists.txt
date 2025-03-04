@@ -33,8 +33,6 @@ add_executable(ljsim
     src/gui/user_action.cpp
     src/gui/scene.cpp
     src/gui/logwindow.cpp
-    src/data/atom_settings.cpp
-    src/data/atom.cpp
     src/data/model.cpp
     src/data/model_loader.cpp
     src/data/structure.cpp

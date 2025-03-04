@@ -125,40 +125,95 @@ public:
     void draw_structure();
 
     /**
-     * @brief      Set a (new) structure
+     * @brief      Sets a new structure without modifying camera settings.
      *
-     * Do not modify camera settings
+     * This function updates the internal structure reference with a new one.
+     * It does not alter camera settings, ensuring the view remains consistent.
      *
-     * @param[in]  _structure  The structure
+     * @param[in]  _structure  A shared pointer to the new structure.
      */
     void set_structure(const std::shared_ptr<Structure>& _structure);
 
     /**
-     * @brief      Gets the structure.
+     * @brief      Retrieves the current structure.
      *
-     * @return     The structure.
+     * This function returns a constant reference to the currently set structure.
+     *
+     * @return     A constant reference to the structure.
      */
-    Structure* get_structure() const {
-        return this->structure.get();
+    const auto& get_structure() const {
+        return this->structure;
     }
 
+    /**
+     * @brief      Handles window movement events.
+     *
+     * This function is triggered when the window is moved, allowing the 
+     * application to respond accordingly (e.g., updating UI elements or
+     * recalculating positions).
+     */
     void window_move_event();
 
+    /**
+     * @brief      Sets the stereo mode.
+     *
+     * Configures the rendering mode for stereoscopic 3D display based on the 
+     * provided stereo name.
+     *
+     * @param[in]  stereo_name  The name of the stereo mode to apply.
+     */
     void set_stereo(QString stereo_name);
 
+    /**
+     * @brief      Provides a minimum size hint for the widget.
+     *
+     * This function returns the smallest recommended size for the widget,
+     * ensuring proper layout and usability.
+     *
+     * @return     The minimum recommended widget size as a QSize object.
+     */
     QSize minimumSizeHint() const Q_DECL_OVERRIDE;
 
+    /**
+     * @brief      Provides a preferred size hint for the widget.
+     *
+     * Returns the suggested size for the widget, helping layout managers 
+     * determine an optimal default size.
+     *
+     * @return     The preferred widget size as a QSize object.
+     */
     QSize sizeHint() const Q_DECL_OVERRIDE;
 
+    /**
+    * @brief      Destructor for AnaglyphWidget.
+    *
+    * Cleans up resources associated with the widget before destruction.
+    */
     ~AnaglyphWidget();
 
+    /**
+     * @brief      Enables or disables the axis display.
+     *
+     * This function sets a flag to enable or disable the axis rendering
+     * in the visualization.
+     *
+     * @param[in]  value  Boolean flag to enable (true) or disable (false) the axis.
+     */
     inline void set_axis_enabled(bool value) {
         this->flag_axis_enabled = value;
     }
 
+    /**
+     * @brief      Checks if the axis display is enabled.
+     *
+     * This function returns whether the axis rendering is currently enabled.
+     *
+     * @return     True if axis rendering is enabled, otherwise false.
+     */
     inline bool get_axis_enabled() const {
         return this->flag_axis_enabled;
     }
+
 
     /**
      * @brief      Gets the user action object.

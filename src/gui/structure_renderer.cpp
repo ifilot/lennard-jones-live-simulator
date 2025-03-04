@@ -56,27 +56,8 @@ StructureRenderer::StructureRenderer(const std::shared_ptr<Scene>& _scene,
  * @param      model_shader  The model shader
  */
 void StructureRenderer::draw(const Structure *structure, bool periodicity_xy, bool periodicity_z) {
-    this->draw_atoms_regular(structure);
-
+    this->draw_atoms(structure);
     //this->draw_unitcell(structure);
-}
-
-/**
- * @brief      Draw the structure
- *
- * @param[in]  structure     The structure
- */
-void StructureRenderer::draw_silhouette(const Structure *structure) {
-    this->draw_atoms_silhouette(structure->get_atoms(), structure);
-}
-
-/**
- * @brief      Draws atoms in the regular unit cell.
- *
- * @param[in]  structure  The structure
- */
-void StructureRenderer::draw_atoms_regular(const Structure* structure) {
-    this->draw_atoms(structure->get_atoms(), structure);
 }
 
 /**
@@ -155,7 +136,7 @@ void StructureRenderer::draw_coordinate_axes() {
  * @param[in]  periodicity_xy  The periodicity xy
  * @param[in]  periodicity_z   The periodicity z
  */
-void StructureRenderer::draw_atoms(const std::vector<Atom>& atoms, const Structure* structure, bool periodicity_xy, bool periodicity_z) {
+void StructureRenderer::draw_atoms(const Structure* structure) {
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
 
     this->vao_sphere.bind();
@@ -163,26 +144,28 @@ void StructureRenderer::draw_atoms(const std::vector<Atom>& atoms, const Structu
     ShaderProgram *model_shader = this->shader_manager->get_shader_program("model_shader");
     model_shader->bind();
 
-    QMatrix4x4 model;
-    QMatrix4x4 mvp;
+    QMatrix4x4 base;
 
     // set general properties
     model_shader->set_uniform("view", this->scene->view);
     model_shader->set_uniform("lightpos", QVector3D(0,-1000,1));
 
     // get the vector that positions the unitcell at the origin
-    auto ctr_vector = structure->get_center_vector();
+    const auto ctr_vector = structure->get_center_vector();
+    QVector3D col = QVector3D(1.0, 1.0, 1.0);
+    const double radius = 0.5;
 
-    for(const Atom& atom : atoms) {
-        // set the color of the atom
-        auto col = AtomSettings::get().get_atom_color_qvector(AtomSettings::get().get_name_from_elnr(atom.atnr));
-        double radius = AtomSettings::get().get_atom_radius_from_elnr(atom.atnr);
+    // set base transformation
+    base.setToIdentity();
+    base *= (this->scene->arcball_rotation) * (this->scene->rotation_matrix);
+
+    for(const auto& _pos : structure->get_positions()) {
+        QVector3D pos = QVector3D(_pos[0], _pos[1], _pos[2]);
 
         // build model matrix
-        model.setToIdentity();
-        model *= (this->scene->arcball_rotation) * (this->scene->rotation_matrix);
+        QMatrix4x4 model = base;
         model.translate(ctr_vector);        // position the center of the unitcell at the origin
-        model.translate(atom.get_pos_qtvec());
+        model.translate(pos);
         model.scale(radius);
 
         // build model - view - projection matrix
@@ -191,56 +174,6 @@ void StructureRenderer::draw_atoms(const std::vector<Atom>& atoms, const Structu
         // set per-atom properties
         model_shader->set_uniform("mvp", mvp);
         model_shader->set_uniform("model", model);
-        model_shader->set_uniform("color", col);
-
-        // draw atom
-        f->glDrawElements(GL_TRIANGLES, this->sphere_indices.size(), GL_UNSIGNED_INT, 0);
-    }
-
-    this->vao_sphere.release();
-    model_shader->release();
-}
-
-/**
- * @brief      Draws silhouette of atoms.
- *
- * @param[in]  atoms           The atoms
- * @param[in]  structure       The structure
- */
-void StructureRenderer::draw_atoms_silhouette(const std::vector<Atom>& atoms, const Structure* structure) {
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-
-    this->vao_sphere.bind();
-
-    ShaderProgram *model_shader = this->shader_manager->get_shader_program("silhouette_shader");
-    model_shader->bind();
-
-    QMatrix4x4 model;
-    QMatrix4x4 mvp;
-
-    // get the vector that positions the unitcell at the origin
-    auto ctr_vector = structure->get_center_vector();
-
-    float counter = 10.0f;
-    for(const Atom& atom : atoms) {
-
-        auto col = QVector3D(0.0f, 0.0f, 0.0f);
-        col = QVector3D(0.0f, 0.0f, 0.0f);
-
-        double radius = AtomSettings::get().get_atom_radius_from_elnr(atom.atnr);
-
-        // build model matrix
-        model.setToIdentity();
-        model *= (this->scene->arcball_rotation) * (this->scene->rotation_matrix);
-        model.translate(ctr_vector);        // position the center of the unitcell at the origin
-        model.translate(atom.get_pos_qtvec());
-        model.scale(radius);
-
-        // build model - view - projection matrix
-        QMatrix4x4 mvp = (this->scene->projection) * (this->scene->view) * model;
-
-        // set per-atom properties
-        model_shader->set_uniform("mvp", mvp);
         model_shader->set_uniform("color", col);
 
         // draw atom
