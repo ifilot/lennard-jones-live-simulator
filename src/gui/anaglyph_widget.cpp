@@ -176,7 +176,7 @@ void AnaglyphWidget::paintGL() {
  */
 void AnaglyphWidget::draw_structure() {
     if(this->structure) {
-        this->structure_renderer->draw(this->structure.get(), this->flag_show_periodicity_xy, this->flag_show_periodicity_z);
+        this->structure_renderer->draw(this->structure.get());
     }
 }
 

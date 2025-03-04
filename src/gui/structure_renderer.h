@@ -84,19 +84,21 @@ private:
     bool flag_draw_unitcell = true;     // whether to draw the unitcell
 
     // used for velocity color map
-    const QVector<QVector4D> color_scheme = {
-        QVector4D(0x05 / 255.0f, 0x30 / 255.0f, 0x61 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0x21 / 255.0f, 0x66 / 255.0f, 0xac / 255.0f, 0xFF / 255.0f),
-        QVector4D(0x43 / 255.0f, 0x93 / 255.0f, 0xc3 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0x92 / 255.0f, 0xc5 / 255.0f, 0xde / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xd1 / 255.0f, 0xe5 / 255.0f, 0xf0 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xf7 / 255.0f, 0xf7 / 255.0f, 0xf7 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xfd / 255.0f, 0xdb / 255.0f, 0xc7 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xf4 / 255.0f, 0xa5 / 255.0f, 0x82 / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xd6 / 255.0f, 0x60 / 255.0f, 0x4d / 255.0f, 0xFF / 255.0f),
-        QVector4D(0xb2 / 255.0f, 0x18 / 255.0f, 0x2b / 255.0f, 0xFF / 255.0f),
-        QVector4D(0x67 / 255.0f, 0x00 / 255.0f, 0x1f / 255.0f, 0xFF / 255.0f)
+    const QVector<QVector3D> color_scheme = {
+        QVector3D(0x05 / 255.0f, 0x30 / 255.0f, 0x61 / 255.0f),
+        QVector3D(0x21 / 255.0f, 0x66 / 255.0f, 0xac / 255.0f),
+        QVector3D(0x43 / 255.0f, 0x93 / 255.0f, 0xc3 / 255.0f),
+        QVector3D(0x92 / 255.0f, 0xc5 / 255.0f, 0xde / 255.0f),
+        QVector3D(0xd1 / 255.0f, 0xe5 / 255.0f, 0xf0 / 255.0f),
+        QVector3D(0xf7 / 255.0f, 0xf7 / 255.0f, 0xf7 / 255.0f),
+        QVector3D(0xfd / 255.0f, 0xdb / 255.0f, 0xc7 / 255.0f),
+        QVector3D(0xf4 / 255.0f, 0xa5 / 255.0f, 0x82 / 255.0f),
+        QVector3D(0xd6 / 255.0f, 0x60 / 255.0f, 0x4d / 255.0f),
+        QVector3D(0xb2 / 255.0f, 0x18 / 255.0f, 0x2b / 255.0f),
+        QVector3D(0x67 / 255.0f, 0x00 / 255.0f, 0x1f / 255.0f)
     };
+
+    bool flag_relative_coloring = true;
 
 public:
     /**
@@ -116,7 +118,7 @@ public:
      * @param[in]  structure     The structure
      * @param      model_shader  The model shader
      */
-    void draw(const Structure *structure, bool periodicity_xy = false, bool periodicity_z = false);
+    void draw(const Structure *structure);
 
     /**
      * @brief      Draw the structure
@@ -135,10 +137,6 @@ public:
      */
     inline void disable_draw_unitcell() {
         this->flag_draw_unitcell = false;
-    }
-
-    const auto& get_vao_sphere() const {
-        return this->vao_sphere;
     }
 
 private:
@@ -252,4 +250,11 @@ private:
      * @return     The 3D vector.
      */
     QVector3D mix(const QVector3D& color1, const QVector3D& color2, float amount) const;
+
+    /**
+     * @brief Get color from scale
+     * @return QVector3D color
+     */
+    QVector3D get_color_from_scale(double low, double high, double val);
+
 };

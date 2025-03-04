@@ -24,6 +24,7 @@
  * @brief Perform integration
  */
 void ThreadIntegrate::run() {
+    qDebug() << "Starting simulation";
     auto dt = this->ljsim->get_params()->get_param<double>("stepsize");
     this->iterator = 0;
     this->local_iterator = 0;
@@ -56,8 +57,12 @@ void ThreadIntegrate::run() {
                 emit(signal_velocities());
                 this->graph_update_wait = true;
             }
+        } else {
+            QThread::sleep(1); // prevents thread from crashing
         }
     }
+
+    exec();
 }
 
 /**
@@ -71,7 +76,6 @@ void ThreadIntegrate::stop() {
  * @brief Pause/unpause the simulation
  */
 void ThreadIntegrate::toggle_pause() {
-    qDebug() << "Toggling simulation";
     this->keeprunning = !this->keeprunning;
     qDebug() << this->keeprunning;
 }

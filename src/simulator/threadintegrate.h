@@ -51,7 +51,7 @@ public:
     /**
      * @brief Perform integration
      */
-    void run();
+    void run() override;
 
     inline void set_simulation(const std::shared_ptr<LennardJonesSimulation> _ljsim) {
         this->iterator = 0;

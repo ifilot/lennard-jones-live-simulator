@@ -293,7 +293,7 @@ void LennardJonesSimulation::update_positions(double dt) {
     const size_t nr_particles = this->params->get_param<int>("nr_particles");
 
     #pragma omp parallel for schedule(static)
-    for(int i=0; i<nr_particles; i++) {
+    for(size_t i=0; i<nr_particles; i++) {
         const glm::dvec3 inc = this->velocities[i] * dt;
         this->positions[i] += inc;
         this->dij_list[i] += inc;

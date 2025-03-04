@@ -103,11 +103,6 @@ private:
     std::unique_ptr<StructureRenderer> structure_renderer;
     std::shared_ptr<ShaderProgramManager> shader_manager;
     std::shared_ptr<Structure> structure;
-
-    // visualization settings
-    bool flag_show_periodicity_xy = false;          // whether to show periodicity in the xy direction
-    bool flag_show_periodicity_z = false;           // whether to shwo periodicity in the z direction
-
     std::shared_ptr<UserAction> user_action;        // object that stores current action of the user on a structure
 
 public:

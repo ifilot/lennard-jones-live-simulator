@@ -55,9 +55,9 @@ StructureRenderer::StructureRenderer(const std::shared_ptr<Scene>& _scene,
  * @param[in]  periodicity_z   whether to draw periodicity in z direction
  * @param      model_shader  The model shader
  */
-void StructureRenderer::draw(const Structure *structure, bool periodicity_xy, bool periodicity_z) {
+void StructureRenderer::draw(const Structure *structure) {
     this->draw_atoms(structure);
-    //this->draw_unitcell(structure);
+    this->draw_unitcell(structure);
 }
 
 /**
@@ -150,17 +150,34 @@ void StructureRenderer::draw_atoms(const Structure* structure) {
     model_shader->set_uniform("view", this->scene->view);
     model_shader->set_uniform("lightpos", QVector3D(0,-1000,1));
 
+    // set local references
+    const auto& positions = structure->get_positions();
+    const auto& velocities = structure->get_velocities();
+
     // get the vector that positions the unitcell at the origin
     const auto ctr_vector = structure->get_center_vector();
-    QVector3D col = QVector3D(1.0, 1.0, 1.0);
     const double radius = 0.5;
+
+    // determine speeds
+    std::vector<double> speeds(velocities.size());
+    #pragma omp parallel for
+    for(unsigned int i=0; i<velocities.size(); i++) {
+        speeds[i] = glm::length(velocities[i]);
+    }
+
+    // determine maximum speed
+    double smax = 10.0;
+    if(this->flag_relative_coloring) {
+        smax = *std::max_element(speeds.begin(), speeds.end());
+    }
+
 
     // set base transformation
     base.setToIdentity();
     base *= (this->scene->arcball_rotation) * (this->scene->rotation_matrix);
 
-    for(const auto& _pos : structure->get_positions()) {
-        QVector3D pos = QVector3D(_pos[0], _pos[1], _pos[2]);
+    for(unsigned int i=0; i<positions.size(); i++) {
+        QVector3D pos = QVector3D(positions[i][0], positions[i][1], positions[i][2]);
 
         // build model matrix
         QMatrix4x4 model = base;
@@ -174,7 +191,7 @@ void StructureRenderer::draw_atoms(const Structure* structure) {
         // set per-atom properties
         model_shader->set_uniform("mvp", mvp);
         model_shader->set_uniform("model", model);
-        model_shader->set_uniform("color", col);
+        model_shader->set_uniform("color", this->get_color_from_scale(0.0, smax, speeds[i]));
 
         // draw atom
         f->glDrawElements(GL_TRIANGLES, this->sphere_indices.size(), GL_UNSIGNED_INT, 0);
@@ -626,4 +643,25 @@ QVector3D StructureRenderer::lighten(const QVector3D& color, float amount) const
  */
 QVector3D StructureRenderer::mix(const QVector3D& color1, const QVector3D& color2, float amount) const {
     return (1.0 - amount) * color1 + amount * color2;
+}
+
+/**
+ * @brief Get color from scale
+ * @return QVector3D color
+ */
+ QVector3D StructureRenderer::get_color_from_scale(double low, double high, double val) {
+    if(val > high) {
+        return this->color_scheme.back();
+    }
+    if(val < low) {
+        return this->color_scheme.front();
+    }
+
+    float binsize = ((high - low)/(double)(this->color_scheme.size()-1));
+    unsigned int bin = floor((val - low) / binsize);
+
+    // interpolate between the two colors
+    float residual = (val - low - (float)bin * binsize) / binsize;
+
+    return residual * this->color_scheme[bin+1] + (1.0-residual) * this->color_scheme[bin];
 }

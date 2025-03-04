@@ -72,7 +72,7 @@ public:
      * Get velocities
      */
     const auto& get_velocities() const {
-        return this->positions;
+        return this->velocities;
     }
 
     /**
