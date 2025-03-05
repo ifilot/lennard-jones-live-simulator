@@ -146,6 +146,7 @@ void GraphWidget::add_data_item_kinetic_energy(double t, double ekin) {
     double emax = *std::max_element(this->kinetic_energy.begin(), this->kinetic_energy.end());
     double avg = std::accumulate(this->kinetic_energy.begin(), this->kinetic_energy.end(), 0) / (double)this->kinetic_energy.size();
     double variance = this->calculate_variance(this->kinetic_energy);
+
     this->series_data_average_kinetic_energy->replace(0, 0, avg);
     this->series_data_average_kinetic_energy->replace(1, t, avg);
     this->series_data_stdlower_kinetic_energy->replace(0, 0, avg - std::sqrt(variance));
@@ -167,6 +168,7 @@ void GraphWidget::add_data_item_potential_energy(double t, double epot) {
     double emax = *std::max_element(this->potential_energy.begin(), this->potential_energy.end());
     double avg = std::accumulate(this->potential_energy.begin(), this->potential_energy.end(), 0) / (double)this->potential_energy.size();
     double variance = this->calculate_variance(this->potential_energy);
+
     this->series_data_average_potential_energy->replace(0, 0, avg);
     this->series_data_average_potential_energy->replace(1, t, avg);
     this->series_data_stdlower_potential_energy->replace(0, 0, avg - std::sqrt(variance));
@@ -188,6 +190,7 @@ void GraphWidget::add_data_item_total_energy(double t, double epot) {
     double emax = *std::max_element(this->total_energy.begin(), this->total_energy.end());
     double avg = std::accumulate(this->total_energy.begin(), this->total_energy.end(), 0) / (double)this->total_energy.size();
     double variance = this->calculate_variance(this->total_energy);
+
     this->series_data_average_total_energy->replace(0, 0, avg);
     this->series_data_average_total_energy->replace(1, t, avg);
     this->series_data_stdlower_total_energy->replace(0, 0, avg - std::sqrt(variance));
@@ -236,6 +239,10 @@ double GraphWidget::calculate_variance(const std::vector<double>& values) {
         variance += (val - avg) * (val - avg);
     }
     variance /= (double)(values.size() - 1);
+
+    if(!qIsFinite(variance)) {
+        return 0.0;
+    }
 
     return variance;
 }

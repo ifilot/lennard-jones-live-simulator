@@ -36,7 +36,6 @@ class ThreadIntegrate : public QThread {
 private:
     std::shared_ptr<LennardJonesSimulation> ljsim;
     bool keeprunning = true;
-    bool graph_update_wait = false;
     unsigned int iterator;
     unsigned int local_iterator;
 
@@ -69,11 +68,6 @@ public slots:
      * @brief Pause/unpause the simulation
      */
     void toggle_pause();
-
-    /**
-     * @brief Wait for response call from GraphWidget to continue the simulation
-     */
-    void slot_simulation_unlock();
 
 signals:
     /**

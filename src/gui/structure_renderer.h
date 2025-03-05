@@ -98,7 +98,7 @@ private:
         QVector3D(0x67 / 255.0f, 0x00 / 255.0f, 0x1f / 255.0f)
     };
 
-    bool flag_relative_coloring = true;
+    bool flag_relative_coloring = false;
 
 public:
     /**

@@ -34,7 +34,7 @@ void ThreadIntegrate::run() {
     auto ttime = std::chrono::system_clock::now();
 
     while(true) {
-        if(this->keeprunning && !this->graph_update_wait) {
+        if(this->keeprunning) {
             if(this->local_iterator < ips / fps) {
                 this->ljsim->integrate(this->iterator, dt);
                 this->local_iterator++;
@@ -55,7 +55,6 @@ void ThreadIntegrate::run() {
                 emit(signal_epot(iterator * dt, this->ljsim->get_epot()));
                 emit(signal_etot(iterator * dt, this->ljsim->get_etot()));
                 emit(signal_velocities());
-                this->graph_update_wait = true;
             }
         } else {
             QThread::sleep(1); // prevents thread from crashing
@@ -78,11 +77,4 @@ void ThreadIntegrate::stop() {
 void ThreadIntegrate::toggle_pause() {
     this->keeprunning = !this->keeprunning;
     qDebug() << this->keeprunning;
-}
-
-/**
- * @brief Receive slot to continue the simulation
- */
-void ThreadIntegrate::slot_simulation_unlock() {
-    this->graph_update_wait = false;
 }
