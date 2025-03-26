@@ -10,8 +10,8 @@ on:
 
 env:
   BUILD_TYPE: Release
-  PROGNAME: ljls
-  EXEC: ljls.exe
+  PROGNAME: ljsim
+  EXEC: ljsim.exe
 
 jobs:
   #
