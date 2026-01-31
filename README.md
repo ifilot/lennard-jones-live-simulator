@@ -7,7 +7,7 @@ potential**. It provides a real-time 3D visualization of particle motion along
 with analytical plots of system properties, such as energy and speed
 distribution.
 
-![screenshot](img/ljsim.JPG)
+![screenshot](img/lennard_jones_simulator_screenshot.png)
 
 ## Features
 - **3D Particle Simulation**: Visualizes the interaction of particles in a
