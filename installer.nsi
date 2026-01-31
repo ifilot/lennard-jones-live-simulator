@@ -1,5 +1,5 @@
 ; ============================
-; Schoenflies NSIS Installer
+; Schoenflies NSIS Installer (User-level)
 ; ============================
 
 !define APP_NAME "ljsim"
@@ -7,14 +7,18 @@
 !define APP_PUBLISHER "Ivo Filot"
 !define APP_EXE "ljsim.exe"
 
-; --- Installer / Uninstaller icon ---
+; Installer icon
 Icon "assets\icon\ljsim.ico"
+UninstallIcon "assets\icon\ljsim.ico"
 
 OutFile "${APP_NAME}-${APP_VERSION}-setup.exe"
-InstallDir "$PROGRAMFILES64\${APP_NAME}"
-InstallDirRegKey HKLM "Software\${APP_NAME}" "InstallDir"
 
-RequestExecutionLevel admin
+; Install inside user profile
+InstallDir "$LOCALAPPDATA\Programs\${APP_NAME}"
+InstallDirRegKey HKCU "Software\${APP_NAME}" "InstallDir"
+
+; No admin rights required
+RequestExecutionLevel user
 
 Page directory
 Page instfiles
@@ -22,21 +26,30 @@ Page instfiles
 Section "Install"
     SetOutPath "$INSTDIR"
 
-    ; Copy shortcut icon into installation directory
+    ; Install shortcut icon
     File "assets\icon\ljsim.ico"
 
-    ; Copy everything from staging directory
+    ; Copy application files
     File /r "dist\${APP_NAME}\*"
 
-    ; Write uninstall information
-    WriteRegStr HKLM "Software\${APP_NAME}" "InstallDir" "$INSTDIR"
+    ; Save install location
+    WriteRegStr HKCU "Software\${APP_NAME}" "InstallDir" "$INSTDIR"
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-    ; Start menu shortcut with custom icon
+    ; --- Register app in Windows Installed Apps (user scope) ---
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayName" "${APP_NAME}"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "UninstallString" "$INSTDIR\Uninstall.exe"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayIcon" "$INSTDIR\${APP_EXE}"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "Publisher" "${APP_PUBLISHER}"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayVersion" "${APP_VERSION}"
+    WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoModify" 1
+    WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoRepair" 1
+
+    ; Start menu shortcut
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
     CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\ljsim.ico"
 
-    ; Desktop shortcut with custom icon
+    ; Desktop shortcut
     CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\ljsim.ico"
 SectionEnd
 
@@ -49,5 +62,6 @@ Section "Uninstall"
     Delete "$DESKTOP\${APP_NAME}.lnk"
     RMDir /r "$SMPROGRAMS\${APP_NAME}"
 
-    DeleteRegKey HKLM "Software\${APP_NAME}"
+    DeleteRegKey HKCU "Software\${APP_NAME}"
+    DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 SectionEnd
