@@ -30,7 +30,7 @@ LogWindow::LogWindow(const std::shared_ptr<QStringList>& _log_messages) :
     qDebug() << "Spawning Debug log window";
 
     // set icon and window title
-    this->setWindowIcon(QIcon(":/assets/icon/atom_architect_256.ico"));
+    this->setWindowIcon(QIcon(":/assets/icon/ljsim.ico"));
     this->setWindowTitle(tr(PROGRAM_NAME) + ": Debug log");
 
     qDebug() << "Building log window layout";

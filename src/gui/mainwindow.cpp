@@ -53,7 +53,7 @@ MainWindow::MainWindow(const std::shared_ptr<QStringList> _log_messages,
     this->statusbar_timer->start(1000);
 
     // set icon
-    setWindowIcon(QIcon(":/assets/icon/atom_architect_256.ico"));
+    setWindowIcon(QIcon(":/assets/icon/ljsim.ico"));
 
     // set Window properties
     this->setWindowTitle(QString(PROGRAM_NAME) + " " + QString(PROGRAM_VERSION));
@@ -92,7 +92,7 @@ void MainWindow::exit() {
     msgBox.setInformativeText("Are you sure you want to quit? Your progress will be <b>unsaved</b>.");
     msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
     msgBox.setDefaultButton(QMessageBox::Cancel);
-    msgBox.setWindowIcon(QIcon(":/assets/icon/atom_architect_256.ico"));
+    msgBox.setWindowIcon(QIcon(":/assets/icon/ljsim.ico"));
     int ret = msgBox.exec();
 
     switch (ret) {
@@ -122,8 +122,8 @@ void MainWindow::about() {
                         PROGRAM_NAME " is dynamically linked to Qt, which is licensed under LGPLv3.\n");
     message_box.setIcon(QMessageBox::Information);
     message_box.setWindowTitle("About " PROGRAM_NAME);
-    message_box.setWindowIcon(QIcon(":/assets/icon/atom_architect_256.ico"));
-    message_box.setIconPixmap(QPixmap(":/assets/icon/atom_architect_256.ico"));
+    message_box.setWindowIcon(QIcon(":/assets/icon/ljsim.ico"));
+    message_box.setIconPixmap(QPixmap(":/assets/icon/ljsim.ico"));
     message_box.exec();
 }
 
