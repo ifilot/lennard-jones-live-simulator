@@ -2,7 +2,7 @@
 ; Schoenflies NSIS Installer
 ; ============================
 
-!define APP_NAME "LJSIM"
+!define APP_NAME "ljsim"
 !define APP_VERSION "1.1.0"
 !define APP_PUBLISHER "Ivo Filot"
 !define APP_EXE "ljsim.exe"
