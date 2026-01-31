@@ -32,7 +32,7 @@ AnaglyphWidget::AnaglyphWidget(QWidget *parent)
     this->shader_manager = std::make_shared<ShaderProgramManager>();
 
     this->scene = std::make_shared<Scene>();
-    this->scene->camera_position = QVector3D(0.0, -10.0f, 0.0);
+    this->scene->camera_position = QVector3D(0.0, -50.0f, 0.0);
 
     auto pTimer = new QTimer(this);
     pTimer->start(1000 / 60.0);

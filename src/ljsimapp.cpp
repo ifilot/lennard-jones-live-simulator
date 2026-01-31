@@ -54,6 +54,6 @@ void LJSimApp::throw_message_window(const QString& title, const QString& message
     message_box.setText(message);
     message_box.setIcon(QMessageBox::Critical);
     message_box.setWindowTitle(title);
-    message_box.setWindowIcon(QIcon(":/assets/icon/atom_architect_256.ico"));
+    message_box.setWindowIcon(QIcon(":/assets/icon/ljsim.ico"));
     message_box.exec();
 }

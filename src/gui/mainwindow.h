@@ -83,6 +83,7 @@ public:
      */
     MainWindow(const std::shared_ptr<QStringList> _log_messages,
                QWidget *parent = nullptr);
+    ~MainWindow() override;
 
 protected:
     void moveEvent(QMoveEvent*) Q_DECL_OVERRIDE;
@@ -159,6 +160,7 @@ private slots:
     void rotation_timer_trigger();
 
 private:
+    void stop_thread();
 
     /**
      * @brief Build the Lennard-Jones simulation

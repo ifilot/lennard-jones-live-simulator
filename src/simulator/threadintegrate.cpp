@@ -30,12 +30,14 @@ void ThreadIntegrate::run() {
     this->local_iterator = 0;
     const double fps = 60.0;
     const double ips = 2000;
+    const double steps_per_frame = ips / fps;
+    const auto frame_duration = std::chrono::duration<double, std::milli>(1000.0 / fps);
 
     auto ttime = std::chrono::system_clock::now();
 
-    while(true) {
+    while(!this->stop_requested.load() && !this->isInterruptionRequested()) {
         if(this->keeprunning) {
-            if(this->local_iterator < ips / fps) {
+            if(this->local_iterator < steps_per_frame) {
                 this->ljsim->integrate(this->iterator, dt);
                 this->local_iterator++;
                 iterator++;
@@ -44,10 +46,12 @@ void ThreadIntegrate::run() {
             auto end = std::chrono::system_clock::now();
             std::chrono::duration<double, std::milli> elapsed_ms = end - ttime;
 
-            if(elapsed_ms.count() > (1000.0 / fps)) {
+            if(elapsed_ms >= frame_duration) {
                 ttime = std::chrono::system_clock::now();
                 this->local_iterator = 0;
                 emit(signal_integration_step());
+            } else if(this->local_iterator >= steps_per_frame) {
+                QThread::msleep(1);
             }
 
             if(iterator % 1000 == 0) {
@@ -57,17 +61,18 @@ void ThreadIntegrate::run() {
                 emit(signal_velocities());
             }
         } else {
-            QThread::sleep(1); // prevents thread from crashing
+            QThread::msleep(50); // keep CPU usage low while paused
         }
     }
 
-    exec();
+    return;
 }
 
 /**
  * @brief stop
  */
 void ThreadIntegrate::stop() {
+    this->stop_requested.store(true);
     this->keeprunning = false;
 }
 
