@@ -89,7 +89,7 @@ void StructureRenderer::draw_coordinate_axes() {
 
     // set general properties
     model_shader->set_uniform("view", this->scene->view);
-    model_shader->set_uniform("lightpos", QVector3D(0,-1000,1));
+    model_shader->set_uniform("light_pos", QVector3D(0,-1000,1));
 
     // *******************
     // draw the three axes
@@ -148,10 +148,10 @@ void StructureRenderer::draw_atoms(const Structure* structure) {
 
     // set general properties
     model_shader->set_uniform("view", this->scene->view);
-    model_shader->set_uniform("lightpos", QVector3D(0,-1000,1));
-    model_shader->set_uniform("lightColor", QVector3D(1,1,1));
-    model_shader->set_uniform("ambientStrength", 0.15f);
-    model_shader->set_uniform("specularStrength", 0.5f);
+    model_shader->set_uniform("light_pos", QVector3D(0,-1000,1));
+    model_shader->set_uniform("light_color", QVector3D(1,1,1));
+    model_shader->set_uniform("ambient_strength", 0.15f);
+    model_shader->set_uniform("specular_strength", 0.5f);
     model_shader->set_uniform("shininess", 64.0f);
 
     // set local references

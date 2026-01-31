@@ -4,11 +4,11 @@ in vec3 vertex_direction_eyespace;   // from fragment to camera
 in vec3 lightdirection_eyespace;     // from fragment to light
 in vec3 normal_eyespace;
 
-uniform vec3  color;                // base surface color
-uniform vec3  lightColor;           // light intensity/color
-uniform float ambientStrength;
-uniform float specularStrength;
-uniform float shininess;            // specular exponent (e.g. 16–128)
+uniform vec3  color;                 // base surface color
+uniform vec3  light_color;           // light intensity/color
+uniform float ambient_strength;
+uniform float specular_strength;
+uniform float shininess;             // specular exponent (e.g. 16–128)
 
 out vec4 fragColor;
 
@@ -20,11 +20,11 @@ void main()
     vec3 V = normalize(vertex_direction_eyespace);
 
     // --- Ambient ---
-    vec3 ambient = ambientStrength * lightColor;
+    vec3 ambient = ambient_strength * light_color;
 
     // --- Diffuse (Lambert) ---
     float NdotL = max(dot(N, L), 0.0);
-    vec3 diffuse = NdotL * lightColor;
+    vec3 diffuse = NdotL * light_color;
 
     // --- Blinn-Phong specular (better than reflect()) ---
     vec3 H = normalize(L + V);   // half-vector
@@ -32,7 +32,7 @@ void main()
     float spec = pow(NdotH, shininess);
 
     // Energy-aware specular reduction
-    vec3 specular = specularStrength * spec * lightColor * (1.0 - color);
+    vec3 specular = specular_strength * spec * light_color * (1.0 - color);
 
     // Combine lighting
     vec3 result = (ambient + diffuse) * color + specular;

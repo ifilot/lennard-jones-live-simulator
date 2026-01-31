@@ -12,7 +12,7 @@ out vec3 normal_eyespace;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 mvp;
-uniform vec3 lightpos;
+uniform vec3 light_pos;
 uniform vec3 object_color;
 
 void main() {
@@ -25,7 +25,7 @@ void main() {
 
     // calculate light-to-vertex direction in eye space
     vec3 position_worldspace = (model * vec4(position, 1.0)).xyz;
-    vec3 light_direction_worldspace = lightpos - position_worldspace.xyz;
+    vec3 light_direction_worldspace = light_pos - position_worldspace.xyz;
     lightdirection_eyespace = (view * vec4(light_direction_worldspace, 0.0)).xyz;
 
     // vertex normals in world and eye space
