@@ -7,7 +7,7 @@ on:
   pull_request:
 
 env:
-  PROGNAME: ljsim   # ← CHANGE THIS to your real app name
+  PROGNAME: ljsim
 
 jobs:
   linux:
@@ -86,7 +86,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installer
+          name: ${{ env.PROGNAME }}-installer-win64
           path: |
             *.exe
 
@@ -122,7 +122,7 @@ jobs:
       - name: Download installer artifact
         uses: actions/download-artifact@v4
         with:
-          name: windows-installer
+          name: ${{ env.PROGNAME }}-installer-win64
           path: ./artifact
 
       - name: Upload Release Asset
