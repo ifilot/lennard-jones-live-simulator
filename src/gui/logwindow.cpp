@@ -20,6 +20,10 @@
 
 #include "../config.h"
 #include "logwindow.h"
+#include <QMutex>
+#include <QMutexLocker>
+
+extern QMutex log_mutex;
 
 LogWindow::LogWindow(const std::shared_ptr<QStringList>& _log_messages) :
     log_messages(_log_messages) {
@@ -41,10 +45,13 @@ LogWindow::LogWindow(const std::shared_ptr<QStringList>& _log_messages) :
     this->text_box->setReadOnly(true);
     this->text_box->setOverwriteMode(false);
 
-    for(const auto& line : *this->log_messages.get()) {
-        this->text_box->appendPlainText(line);
+    {
+        QMutexLocker locker(&log_mutex);
+        for(const auto& line : *this->log_messages.get()) {
+            this->text_box->appendPlainText(line);
+        }
+        this->linesread = this->log_messages->size();
     }
-    this->linesread = this->log_messages->size();
 
     this->setMinimumHeight(256);
     this->setMinimumWidth(1024);
@@ -58,6 +65,7 @@ LogWindow::LogWindow(const std::shared_ptr<QStringList>& _log_messages) :
 }
 
 void LogWindow::update_log() {
+    QMutexLocker locker(&log_mutex);
     int newsize = this->log_messages->size();
     for(int i=this->linesread; i<newsize; i++) {
         this->text_box->appendPlainText(this->log_messages->at(i));

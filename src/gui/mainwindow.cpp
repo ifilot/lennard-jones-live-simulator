@@ -78,6 +78,10 @@ MainWindow::MainWindow(const std::shared_ptr<QStringList> _log_messages,
     this->setup_simulation(params);
 }
 
+MainWindow::~MainWindow() {
+    this->stop_thread();
+}
+
 /**
  * @brief      Close the application
  */
@@ -93,6 +97,7 @@ void MainWindow::exit() {
 
     switch (ret) {
       case QMessageBox::Ok:
+          this->stop_thread();
           QApplication::quit();
           return;
       case QMessageBox::Cancel:
@@ -204,8 +209,8 @@ void MainWindow::toggle_rotation() {
  * @brief Perform integration step update call
  */
  void MainWindow::integration_step() {
-    this->anaglyph_widget->get_structure()->set_particle_positions(this->ljsim->get_positions());
-    this->anaglyph_widget->get_structure()->set_particle_velocities(this->ljsim->get_velocities());
+    this->anaglyph_widget->get_structure()->set_particle_positions(this->ljsim->get_positions_copy());
+    this->anaglyph_widget->get_structure()->set_particle_velocities(this->ljsim->get_velocities_copy());
     this->anaglyph_widget->update();
 }
 
@@ -213,7 +218,7 @@ void MainWindow::toggle_rotation() {
  * @brief Transmit velocities from simulation to Graph Widget
  */
 void MainWindow::slot_transmit_velocities() {
-    this->graph_widget->set_particle_speed(this->ljsim->get_velocities());
+    this->graph_widget->set_particle_speed(this->ljsim->get_velocities_copy());
 }
 
 /**
@@ -229,13 +234,13 @@ void MainWindow::slot_transmit_velocities() {
     }
     this->graph_widget->set_params(params->get_param<double>("kT"), 
                                    params->get_param<double>("mass"), 
-                                   this->ljsim->get_velocities().size());
+                                   this->ljsim->get_particle_count());
 
     // build structure and link it to anaglyph widget
     qDebug() << "Build Structure";
     auto struc = std::make_shared<Structure>(MatrixUnitcell::Identity() * this->ljsim->get_dims()[0]);
-    struc->set_particle_positions(this->ljsim->get_positions());
-    struc->set_particle_velocities(this->ljsim->get_velocities());
+    struc->set_particle_positions(this->ljsim->get_positions_copy());
+    struc->set_particle_velocities(this->ljsim->get_velocities_copy());
     this->anaglyph_widget->set_structure(struc);
 }
 
@@ -495,9 +500,7 @@ void MainWindow::set_widgets() {
  * @brief Construct a new simulation
  */
  void MainWindow::new_simulation() {
-    if(this->thread != nullptr) {
-        this->thread->stop();
-    }
+    this->stop_thread();
     auto params = std::make_shared<LennardJonesParameters>();
     DialogNewSimulation dialog(params, this);
     int ret = dialog.exec();
@@ -505,6 +508,22 @@ void MainWindow::set_widgets() {
     if(ret == QDialog::Accepted) {
         this->setup_simulation(params);
     }
+}
+
+void MainWindow::stop_thread() {
+    if(this->thread == nullptr) {
+        return;
+    }
+
+    this->thread->stop();
+    this->thread->requestInterruption();
+    if(!this->thread->wait(2000)) {
+        qWarning() << "Simulation thread did not stop in time.";
+        this->thread->terminate();
+        this->thread->wait();
+    }
+    delete this->thread;
+    this->thread = nullptr;
 }
 
 /**

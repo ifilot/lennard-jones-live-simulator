@@ -26,6 +26,7 @@
 #include <memory>
 #include <QTimer>
 #include <chrono>
+#include <atomic>
 
 #include "lennardjonessimulation.h"
 
@@ -36,6 +37,7 @@ class ThreadIntegrate : public QThread {
 private:
     std::shared_ptr<LennardJonesSimulation> ljsim;
     bool keeprunning = true;
+    std::atomic_bool stop_requested{false};
     unsigned int iterator;
     unsigned int local_iterator;
 

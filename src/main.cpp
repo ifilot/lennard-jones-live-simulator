@@ -23,6 +23,8 @@
 #include <QStatusBar>
 #include <QStringList>
 #include <QDebug>
+#include <QMutex>
+#include <QMutexLocker>
 
 #include <iostream>
 #include <iomanip>
@@ -34,6 +36,7 @@
 #include "config.h"
 
 std::shared_ptr<QStringList> log_messages;
+QMutex log_mutex;
 
 /**
  * @brief custom function for storing and display messages
@@ -42,6 +45,7 @@ std::shared_ptr<QStringList> log_messages;
  * @param msg
  */
 void message_output(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
+    QMutexLocker locker(&log_mutex);
     QString local_msg = QString(msg.toLocal8Bit());
 
     QDateTime date = QDateTime::currentDateTime();
@@ -68,6 +72,12 @@ void message_output(QtMsgType type, const QMessageLogContext &context, const QSt
         log_messages->append(fmtime + " [FATAL] " + local_msg);
         std::cerr << "[FATAL] " << msg.toStdString() << std::endl;
         break;
+    }
+
+    const int max_log_entries = 5000;
+    if(log_messages->size() > max_log_entries) {
+        log_messages->erase(log_messages->begin(),
+                            log_messages->begin() + (log_messages->size() - max_log_entries));
     }
 }
 

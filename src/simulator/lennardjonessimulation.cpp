@@ -20,10 +20,13 @@
 
 #include "lennardjonessimulation.h"
 
+#include <array>
+#include <cmath>
+#include <cstring>
+
 /**
- * @brief      default constructor
- *
- * @param[in]  _params  set of parameters
+ * @brief Construct a Lennard-Jones simulation.
+ * @param _params Shared pointer to the parameter set.
  */
 LennardJonesSimulation::LennardJonesSimulation(const std::shared_ptr<LennardJonesParameters>& _params) :
     params(_params)
@@ -31,69 +34,104 @@ LennardJonesSimulation::LennardJonesSimulation(const std::shared_ptr<LennardJone
     this->ttime = std::chrono::system_clock::now();
 
     double l = this->params->get_param<double>("cell_length");
-    this->dims = glm::dvec3(l,l,l);
+    this->dims = glm::dvec3(l, l, l);
 
-    this->initialize();
-    this->build_neighbor_list();
-    this->calculate_forces();
+    const size_t n = (size_t)this->params->get_param<int>("nr_particles");
+
+    // Allocate SoA buffers
+    for (int b = 0; b < 2; ++b) {
+        pos_buf[b].x.resize(n);
+        pos_buf[b].y.resize(n);
+        pos_buf[b].z.resize(n);
+    }
+
+    vx.resize(n); vy.resize(n); vz.resize(n);
+    fx.resize(n); fy.resize(n); fz.resize(n);
+
+    dijx.resize(n); dijy.resize(n); dijz.resize(n);
+
+    // Initialize into write buffer (1), then publish it as render buffer (0/1 doesn’t matter yet)
+    render_idx.store(0, std::memory_order_release);
+    sim_write_idx = 0; // write initial into 0
+    initialize();
+
+    // neighbor list + forces use "current positions"
+    build_neighbor_list(sim_write_idx);
+    calculate_forces(sim_write_idx);
+
+    publish_state(sim_write_idx); // publish initialized buffer
 }
 
 /**
- * @brief      Perform integration by timestep dt
- *
- * @param[in]  step  The step number
- * @param[in]  dt    timestep
+ * @brief Perform one velocity-Verlet integration step.
+ * @param step Current simulation step index.
+ * @param dt   Time step size.
  */
 void LennardJonesSimulation::integrate(unsigned int step, double dt) {
-    this->update_velocities_half_dt(dt);
-    this->apply_berendsen_thermostat(dt);
-    this->update_positions(dt);
-    this->calculate_forces();
-    this->apply_boundary_conditions();
+    const int read_idx  = render_idx.load(std::memory_order_acquire);
+    const int write_idx = 1 - read_idx;
 
-    // check if neighbor list needs to be rebuild
-    if(this->check_update_neighbor_list()) {
-        this->build_neighbor_list();
+    // -------------------------
+    // OpenMP: keep multiple loops inside one parallel region
+    // -------------------------
+    update_velocities_half_dt(dt);
+
+    // thermostat uses ekin; scale velocities in parallel inside one region
+    apply_berendsen_thermostat(dt);
+
+    update_positions(dt, read_idx, write_idx);
+
+    // The following parts are not OpenMP-parallel in your current design (due to data races),
+    // but are still the main compute hot spot; we keep them as-is but SoA + manual math helps.
+    calculate_forces(write_idx);
+    apply_boundary_conditions(write_idx);
+
+    if (check_update_neighbor_list()) {
+        build_neighbor_list(write_idx);
     }
 
-    this->update_velocities_half_dt(dt);
-    this->etot = this->ekin + this->epot;
+    update_velocities_half_dt(dt);
+
+    etot.store(ekin.load(std::memory_order_relaxed) + epot.load(std::memory_order_relaxed),
+               std::memory_order_relaxed);
+
+    publish_state(write_idx);
 
     if (step % 1000 == 0) {
-        // Calculate elapsed time
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end - ttime;
-    
-        // Format string using QString::arg()
+
         QString logMessage = QString("Step %1  Ekin = %2  Epot = %3  Etot = %4  Time = %5 s")
-                                .arg(step, 4, 10, QChar('0'))  // Step, padded to 4 digits
-                                .arg(this->ekin, 0, 'f', 6)   // Kinetic energy, 6 decimal places
-                                .arg(this->epot, 0, 'f', 6)   // Potential energy, 6 decimal places
-                                .arg(this->etot, 0, 'f', 6)   // Total energy, 6 decimal places
-                                .arg(elapsed_seconds.count(), 0, 'f', 4); // Time, 4 decimal places
-    
+                                .arg(step, 4, 10, QChar('0'))
+                                .arg(this->ekin.load(std::memory_order_relaxed), 0, 'f', 6)
+                                .arg(this->epot.load(std::memory_order_relaxed), 0, 'f', 6)
+                                .arg(this->etot.load(std::memory_order_relaxed), 0, 'f', 6)
+                                .arg(elapsed_seconds.count(), 0, 'f', 4);
+
         qDebug() << logMessage;
-    
-        // Reset timer
         this->ttime = std::chrono::system_clock::now();
     }
 }
 
 /**
- * @brief      Write to movie file for current state
- *
- * @param[in]  moviefile  Path to the movie file
- * @param[in]  create     Whether to truncate (true) or to append (false)
+ * @brief Write current simulation state to a movie file.
+ * @param moviefile Path to output file.
+ * @param create    If true, file is truncated; otherwise appended.
  */
 void LennardJonesSimulation::write_to_movie_file(const std::string& moviefile, bool create) {
     std::ofstream outfile;
-    uint32_t nr_particles = this->params->get_param<int>("nr_particles");
+    uint32_t n = (uint32_t)this->params->get_param<int>("nr_particles");
+
+    const int ridx = render_idx.load(std::memory_order_acquire);
+    const auto& px = pos_buf[ridx].x;
+    const auto& py = pos_buf[ridx].y;
+    const auto& pz = pos_buf[ridx].z;
 
     if(create) {
         outfile.open(moviefile, std::ios_base::trunc | std::ios::binary);
-        char buffer[sizeof(uint32_t)];
-        std::memcpy(buffer, &nr_particles, sizeof(uint32_t));
-        outfile.write(buffer, sizeof(uint32_t));
+        char bufferN[sizeof(uint32_t)];
+        std::memcpy(bufferN, &n, sizeof(uint32_t));
+        outfile.write(bufferN, sizeof(uint32_t));
     } else {
         outfile.open(moviefile, std::ios_base::app | std::ios::binary);
     }
@@ -103,11 +141,14 @@ void LennardJonesSimulation::write_to_movie_file(const std::string& moviefile, b
     std::memcpy(&buffer[0], &this->dims[0], sizeof(double) * 3);
     outfile.write(buffer, sizeof(double) * 3);
 
-    for(unsigned int i=0; i<nr_particles; i++) {
-        std::memcpy(&buffer[0], &this->positions[i][0], sizeof(double) * 3);
-        std::memcpy(&buffer[3 * sizeof(double)], &this->velocities[i][0], sizeof(double) * 3);
-        double velocity = glm::length(this->velocities[i]);
-        std::memcpy(&buffer[6 * sizeof(double)], &velocity, sizeof(double));
+    for(unsigned int i=0; i<n; i++) {
+        double pos3[3] = { px[i], py[i], pz[i] };
+        double vel3[3] = { vx[i], vy[i], vz[i] };
+        double speed = std::sqrt(vel3[0]*vel3[0] + vel3[1]*vel3[1] + vel3[2]*vel3[2]);
+
+        std::memcpy(&buffer[0], &pos3[0], sizeof(double) * 3);
+        std::memcpy(&buffer[3 * sizeof(double)], &vel3[0], sizeof(double) * 3);
+        std::memcpy(&buffer[6 * sizeof(double)], &speed, sizeof(double));
 
         outfile.write(buffer, sizeof(double) * 7);
     }
@@ -115,28 +156,49 @@ void LennardJonesSimulation::write_to_movie_file(const std::string& moviefile, b
     outfile.close();
 }
 
+std::vector<glm::dvec3> LennardJonesSimulation::get_positions_copy() const {
+    const int idx = render_idx.load(std::memory_order_acquire);
+    const auto& px = pos_buf[idx].x;
+    const auto& py = pos_buf[idx].y;
+    const auto& pz = pos_buf[idx].z;
+
+    std::vector<glm::dvec3> out(px.size());
+    #pragma omp parallel for
+    for (int i = 0; i < (int)px.size(); ++i) {
+        out[i] = glm::dvec3(px[i], py[i], pz[i]);
+    }
+    return out;
+}
+
+std::vector<glm::dvec3> LennardJonesSimulation::get_velocities_copy() const {
+    std::vector<glm::dvec3> out(vx.size());
+    #pragma omp parallel for
+    for (int i = 0; i < (int)vx.size(); ++i) {
+        out[i] = glm::dvec3(vx[i], vy[i], vz[i]);
+    }
+    return out;
+}
+
 /**
- * @brief      Initialize unit cell
+ * @brief Initialize particle positions and velocities.
  */
 void LennardJonesSimulation::initialize() {
-    const size_t nr_particles = this->params->get_param<int>("nr_particles");
+    const size_t n = (size_t)this->params->get_param<int>("nr_particles");
     const double volume = this->dims.x * this->dims.y * this->dims.z;
-    const double dl = std::pow(volume / (double)nr_particles, 1.0 / 3.0);
+    const double dl = std::pow(volume / (double)n, 1.0 / 3.0);
 
-    // calculate dimensions of rectangular lattice to position particles on
     size_t nx = (size_t) std::ceil(this->dims.x / dl);
     size_t ny = (size_t) std::ceil(this->dims.y / dl);
     size_t nz = (size_t) std::ceil(this->dims.z / dl);
-    double dx = dims.x/(double)nx;
-    double dy = dims.y/(double)ny;
-    double dz = dims.z/(double)nz;
 
-    // expand vectors to match number of particles
-    this->positions.resize(nr_particles);
-    this->velocities.resize(nr_particles);
-    this->forces.resize(nr_particles);
+    const double dx = dims.x/(double)nx;
+    const double dy = dims.y/(double)ny;
+    const double dz = dims.z/(double)nz;
 
-    // position all particles on a rectangular lattice
+    auto& px = pos_buf[sim_write_idx].x;
+    auto& py = pos_buf[sim_write_idx].y;
+    auto& pz = pos_buf[sim_write_idx].z;
+
     size_t count = 0;
     for(size_t i = 0; i<nx; i++) {
         const double x = (i+0.5)*dx;
@@ -145,236 +207,292 @@ void LennardJonesSimulation::initialize() {
             for(size_t k = 0; k<nz; k++) {
                 const double z = (k+0.5)*dz;
 
-                if (count >= nr_particles) {
-                    break;
-                }
+                if (count >= n) break;
 
-                this->positions[count] = glm::dvec3(x,y,z);
+                px[count] = x;
+                py[count] = y;
+                pz[count] = z;
                 count++;
             }
         }
     }
 
-    // obtain data from params object
-    double kT = this->params->get_param<double>("kT");
-    double m = this->params->get_param<double>("mass");
+    // velocities init
+    const double kT = this->params->get_param<double>("kT");
+    const double m  = this->params->get_param<double>("mass");
+    const double sqrtktm = std::sqrt(kT/m);
 
-    double sqrtktm = std::sqrt(kT/m);
-
-    glm::dvec3 sum;
-
-    // randomly set velocities
-    for (size_t i=0; i<nr_particles; i++) {
-        this->velocities[i] = sqrtktm * glm::dvec3(this->get_gauss(), this->get_gauss(), this->get_gauss());
-        sum += this->velocities[i];
+    double sumx = 0.0, sumy = 0.0, sumz = 0.0;
+    for (size_t i=0; i<n; i++) {
+        vx[i] = sqrtktm * get_gauss();
+        vy[i] = sqrtktm * get_gauss();
+        vz[i] = sqrtktm * get_gauss();
+        sumx += vx[i]; sumy += vy[i]; sumz += vz[i];
     }
 
-    sum /= (double)nr_particles;
+    const double invn = 1.0 / (double)n;
+    sumx *= invn; sumy *= invn; sumz *= invn;
 
-    // subtract velocity average to remove nett momentum
-    for (size_t i=0; i<nr_particles; i++) {
-        this->velocities[i] -= sum;
+    for (size_t i=0; i<n; i++) {
+        vx[i] -= sumx;
+        vy[i] -= sumy;
+        vz[i] -= sumz;
     }
 
-    this->dij_list.resize(nr_particles);
+    // reset dij
+    std::fill(dijx.begin(), dijx.end(), 0.0);
+    std::fill(dijy.begin(), dijy.end(), 0.0);
+    std::fill(dijz.begin(), dijz.end(), 0.0);
 }
 
-/**
- * @brief      Get number from normal distribution between -1 and 1
- *
- * @return     Random number
- */
 double LennardJonesSimulation::get_gauss() const {
-    // construct RNG
     static std::default_random_engine generator;
-    static std::normal_distribution<double> distribution(0.0, 1.0); // avg 0, sigma 1
-
+    static std::normal_distribution<double> distribution(0.0, 1.0);
     return distribution(generator);
 }
 
 /**
- * @brief      Calculates the forces.
+ * @brief Compute forces and potential energy.
+ * @param cur_idx Index of position buffer to use.
  */
-void LennardJonesSimulation::calculate_forces() {
-    const size_t nr_particles = this->params->get_param<int>("nr_particles");
+void LennardJonesSimulation::calculate_forces(int cur_idx) {
+    const size_t n = (size_t)this->params->get_param<int>("nr_particles");
+
     const double rcut = this->params->get_param<double>("rcut");
     const double rcutsq = rcut * rcut;
     const double sigma = this->params->get_param<double>("sigma");
     const double sigmasq = sigma * sigma;
 
-    // set potential energy to zero
-    this->epot = 0.0;
+    const double epsilon = this->params->get_param<double>("epsilon");
+    const double prefctr = 24.0 * epsilon;
 
+    // cutoff shift
     double sr2 = sigmasq / rcutsq;
     double sr6 = sr2 * sr2 * sr2;
     double sr12 = sr6 * sr6;
     const double epot_cutoff = sr12 - sr6;
 
-    // set forces to zero
-    memset(&this->forces[0], 0, nr_particles * sizeof(double) * 3);
+    // zero forces
+    std::fill(fx.begin(), fx.end(), 0.0);
+    std::fill(fy.begin(), fy.end(), 0.0);
+    std::fill(fz.begin(), fz.end(), 0.0);
+
+    const auto& px = pos_buf[cur_idx].x;
+    const auto& py = pos_buf[cur_idx].y;
+    const auto& pz = pos_buf[cur_idx].z;
 
     double epotsum = 0.0;
 
-    // TODO: this function could potentially benefit from multi-hreading
-    // though this function suffers from a race condition
-    for(int i=0; i<nr_particles; i++) {
-        for(auto it = this->neighbor_list.begin() + this->neighbor_list[i]; *it != i; ++it) {
-            glm::dvec3 rij = this->positions[i] - this->positions[*it];
+    for (int i = 0; i < (int)n; i++) {
+        for (auto it = neighbor_list.begin() + neighbor_list[i]; *it != (unsigned)i; ++it) {
+            const unsigned j = *it;
 
-            for(unsigned int k=0; k<3; k++) {
-                if(rij[k] >= this->dims[k] * 0.5) {
-                    rij[k] -= this->dims[k];
-                    continue;
-                }
+            // minimum image
+            double dx = px[i] - px[j];
+            double dy = py[i] - py[j];
+            double dz = pz[i] - pz[j];
 
-                if(rij[k] < -this->dims[k] * 0.5) {
-                    rij[k] += this->dims[k];
-                }
-            }
+            if (dx >= dims.x * 0.5) dx -= dims.x;
+            else if (dx < -dims.x * 0.5) dx += dims.x;
 
-            double distsq = glm::length2(rij);
+            if (dy >= dims.y * 0.5) dy -= dims.y;
+            else if (dy < -dims.y * 0.5) dy += dims.y;
 
-            if(distsq >= rcutsq) {
-                continue;
-            }
+            if (dz >= dims.z * 0.5) dz -= dims.z;
+            else if (dz < -dims.z * 0.5) dz += dims.z;
 
-            sr2 = sigmasq / distsq;
-            sr6 = sr2 * sr2 * sr2;
-            sr12 = sr6 * sr6;
+            const double d2 = dx*dx + dy*dy + dz*dz;
+            if (d2 >= rcutsq) continue;
 
-            epotsum += (sr12 - sr6 - epot_cutoff);
-            double fr = (2.0 * sr12 - sr6) / distsq;
-            this->forces[i] += fr * rij;
+            const double invd2 = 1.0 / d2;
+            const double s2 = sigmasq * invd2;
+            const double s6 = s2 * s2 * s2;
+            const double s12 = s6 * s6;
+
+            epotsum += (s12 - s6 - epot_cutoff);
+
+            const double fr = (2.0 * s12 - s6) * invd2;
+            fx[i] += fr * dx;
+            fy[i] += fr * dy;
+            fz[i] += fr * dz;
         }
     }
 
-    const double epsilon = this->params->get_param<double>("epsilon");
-    const double prefctr = 24.0 * epsilon;
-
-    for(unsigned int i=0; i<nr_particles; i++) {
-        this->forces[i] *= prefctr;
+    for (size_t i = 0; i < n; i++) {
+        fx[i] *= prefctr;
+        fy[i] *= prefctr;
+        fz[i] *= prefctr;
     }
 
-    this->epot = epotsum * 4.0 * epsilon;
-
-    // multiply by 0.5 because we have double counting
-    this->epot *= 0.5;
+    double ep = epotsum * 4.0 * epsilon;
+    ep *= 0.5; // double counting
+    epot.store(ep, std::memory_order_relaxed);
 }
 
 /**
- * @brief      Update velocities by half a timestep
- *
- * @param[in]  dt    Timestep (is divided by half INSIDE the function)
+ * @brief Update velocities by half a timestep.
+ * @param dt Time step size.
  */
 void LennardJonesSimulation::update_velocities_half_dt(double dt) {
+    const size_t n = (size_t)this->params->get_param<int>("nr_particles");
     const double m = this->params->get_param<double>("mass");
-    const size_t nr_particles = this->params->get_param<int>("nr_particles");
-
-    this->ekin = 0.0;
-    const double factor = 0.5 / m * dt;
+    const double factor = 0.5 * dt / m;
 
     double ekinsum = 0.0;
 
-    #pragma omp parallel for reduction(+: ekinsum)
-    for(int i=0; i<nr_particles; i++) {
-        this->velocities[i] += factor * this->forces[i];
-        ekinsum += glm::length2(this->velocities[i]);
+    // single parallel region to reduce overhead
+    #pragma omp parallel
+    {
+        double local_sum = 0.0;
+
+        #pragma omp for schedule(static)
+        for (int i = 0; i < (int)n; i++) {
+            vx[i] += factor * fx[i];
+            vy[i] += factor * fy[i];
+            vz[i] += factor * fz[i];
+
+            local_sum += (vx[i]*vx[i] + vy[i]*vy[i] + vz[i]*vz[i]);
+        }
+
+        #pragma omp atomic
+        ekinsum += local_sum;
     }
 
-    this->ekin = ekinsum * 0.5 * m;
+    ekin.store(0.5 * m * ekinsum, std::memory_order_relaxed);
 }
 
 /**
- * @brief      Update positions by timestep dt
- *
- * @param[in]  dt    Timestep
- */
-void LennardJonesSimulation::update_positions(double dt) {
-    const size_t nr_particles = this->params->get_param<int>("nr_particles");
-
-    #pragma omp parallel for schedule(static)
-    for(size_t i=0; i<nr_particles; i++) {
-        const glm::dvec3 inc = this->velocities[i] * dt;
-        this->positions[i] += inc;
-        this->dij_list[i] += inc;
-    }
-}
-
-/**
- * @brief      Applies periodic boundary conditions to the positions
- */
-void LennardJonesSimulation::apply_boundary_conditions() {
-    const size_t nr_particles = this->params->get_param<int>("nr_particles");
-
-    const glm::dvec3 invL = 1.0 / this->dims;
-
-    for(unsigned int i=0; i<nr_particles; i++) {
-        this->positions[i].x -= this->dims.x * std::floor(this->positions[i].x * invL.x);
-        this->positions[i].y -= this->dims.y * std::floor(this->positions[i].y * invL.y);
-        this->positions[i].z -= this->dims.z * std::floor(this->positions[i].z * invL.z);
-    }
-}
-
-/**
- * @brief      Perform velocity scaling using Berendsen thermostat
- *
- * @param[in]  dt    Timestep
+ * @brief Apply Berendsen thermostat scaling.
+ * @param dt Time step size.
  */
 void LennardJonesSimulation::apply_berendsen_thermostat(double dt) {
-    const size_t nr_particles = this->params->get_param<int>("nr_particles");
+    const size_t n = (size_t)this->params->get_param<int>("nr_particles");
     const double tau = this->params->get_param<double>("tau");
     const double kT = this->params->get_param<double>("kT");
 
-    double ekin0 = 1.5*((double)(nr_particles-1))*kT;
-    const double lambda = std::sqrt(1.0 + dt / tau * (ekin0 / this->ekin - 1.0));
+    const double ek = ekin.load(std::memory_order_relaxed);
+    const double ekin0 = 1.5 * (double)(n - 1) * kT;
+    const double lambda = std::sqrt(1.0 + dt / tau * (ekin0 / ek - 1.0));
 
     #pragma omp parallel for schedule(static)
-    for(int i=0; i<nr_particles; i++) {
-        this->velocities[i] *= lambda;
+    for (int i = 0; i < (int)n; i++) {
+        vx[i] *= lambda;
+        vy[i] *= lambda;
+        vz[i] *= lambda;
     }
 }
 
 /**
- * @brief      Build neighbor list
+ * @brief Update positions: read from read_idx, write to write_idx (true double buffer)
  */
-void LennardJonesSimulation::build_neighbor_list() {
+void LennardJonesSimulation::update_positions(double dt, int read_idx, int write_idx) {
+    const size_t n = (size_t)this->params->get_param<int>("nr_particles");
+
+    const auto& prx = pos_buf[read_idx].x;
+    const auto& pry = pos_buf[read_idx].y;
+    const auto& prz = pos_buf[read_idx].z;
+
+    auto& pwx = pos_buf[write_idx].x;
+    auto& pwy = pos_buf[write_idx].y;
+    auto& pwz = pos_buf[write_idx].z;
+
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < (int)n; i++) {
+        const double incx = vx[i] * dt;
+        const double incy = vy[i] * dt;
+        const double incz = vz[i] * dt;
+
+        pwx[i] = prx[i] + incx;
+        pwy[i] = pry[i] + incy;
+        pwz[i] = prz[i] + incz;
+
+        dijx[i] += incx;
+        dijy[i] += incy;
+        dijz[i] += incz;
+    }
+}
+
+/**
+ * @brief Apply periodic boundary conditions.
+ * @param cur_idx Index of position buffer.
+ */
+void LennardJonesSimulation::apply_boundary_conditions(int cur_idx) {
+    const size_t n = (size_t)this->params->get_param<int>("nr_particles");
+
+    auto& px = pos_buf[cur_idx].x;
+    auto& py = pos_buf[cur_idx].y;
+    auto& pz = pos_buf[cur_idx].z;
+
+    const double invLx = 1.0 / dims.x;
+    const double invLy = 1.0 / dims.y;
+    const double invLz = 1.0 / dims.z;
+
+    for (size_t i = 0; i < n; i++) {
+        px[i] -= dims.x * std::floor(px[i] * invLx);
+        py[i] -= dims.y * std::floor(py[i] * invLy);
+        pz[i] -= dims.z * std::floor(pz[i] * invLz);
+    }
+}
+
+/**
+ * @brief Build Verlet neighbor list.
+ * @param cur_idx Index of position buffer.
+ */
+void LennardJonesSimulation::build_neighbor_list(int cur_idx) {
     const double cutoff = this->params->get_param<double>("rcut");
-    const double shell = this->params->get_param<double>("shell");
-    const double csc = cutoff + shell;
-    const double cutsq = csc * csc;
+    const double shell  = this->params->get_param<double>("shell");
+    const double csc    = cutoff + shell;
+    const double cutsq  = csc * csc;
 
-    unsigned int nx = this->dims.x / csc;
-    unsigned int ny = this->dims.y / csc;
-    unsigned int nz = this->dims.z / csc;
+    unsigned int nx = (unsigned int)(this->dims.x / csc);
+    unsigned int ny = (unsigned int)(this->dims.y / csc);
+    unsigned int nz = (unsigned int)(this->dims.z / csc);
 
-    // specify subcell sizes
-    double dx = dims.x / (double)nx;
-    double dy = dims.y / (double)ny;
-    double dz = dims.z / (double)nz;
+    nx = std::max(1u, nx);
+    ny = std::max(1u, ny);
+    nz = std::max(1u, nz);
 
-    // place all particles in subcells
-    std::vector<std::vector<unsigned int> > subcells(nx * ny * nz);
+    const double dx = dims.x / (double)nx;
+    const double dy = dims.y / (double)ny;
+    const double dz = dims.z / (double)nz;
 
-    for(unsigned int i=0; i<this->positions.size(); i++) {
-        unsigned int ix = positions[i].x / dx;
-        unsigned int iy = positions[i].y / dy;
-        unsigned int iz = positions[i].z / dz;
+    const size_t npos = pos_buf[cur_idx].x.size();
+
+    const auto& px = pos_buf[cur_idx].x;
+    const auto& py = pos_buf[cur_idx].y;
+    const auto& pz = pos_buf[cur_idx].z;
+
+    std::vector<std::vector<unsigned int>> subcells(nx * ny * nz);
+
+    for (unsigned int i = 0; i < (unsigned)npos; i++) {
+        unsigned int ix = (unsigned int)(px[i] / dx);
+        unsigned int iy = (unsigned int)(py[i] / dy);
+        unsigned int iz = (unsigned int)(pz[i] / dz);
+
+        ix = std::min(ix, nx - 1);
+        iy = std::min(iy, ny - 1);
+        iz = std::min(iz, nz - 1);
 
         unsigned int cellid = iz * nx * ny + iy * nx + ix;
         subcells[cellid].push_back(i);
     }
 
-    // collect neighbors for each particle
-    std::vector<std::vector<unsigned int>> nnlist(this->positions.size());
+    std::vector<std::vector<unsigned int>> nnlist(npos);
+
     #pragma omp parallel for
-    for(int i=0; i<this->positions.size(); i++) {
-        this->dij_list[i] = glm::dvec3(0.0, 0.0, 0.0);
+    for (int i = 0; i < (int)npos; i++) {
+        dijx[i] = 0.0;
+        dijy[i] = 0.0;
+        dijz[i] = 0.0;
 
-        unsigned int ix = positions[i].x / dx;
-        unsigned int iy = positions[i].y / dy;
-        unsigned int iz = positions[i].z / dz;
+        unsigned int ix = (unsigned int)(px[i] / dx);
+        unsigned int iy = (unsigned int)(py[i] / dy);
+        unsigned int iz = (unsigned int)(pz[i] / dz);
 
-        // build list of neighboring cells
+        ix = std::min(ix, nx - 1);
+        iy = std::min(iy, ny - 1);
+        iz = std::min(iz, nz - 1);
+
         unsigned int lx = ix == 0 ? (nx - 1) : (ix - 1);
         unsigned int ly = iy == 0 ? (ny - 1) : (iy - 1);
         unsigned int lz = iz == 0 ? (nz - 1) : (iz - 1);
@@ -389,66 +507,70 @@ void LennardJonesSimulation::build_neighbor_list() {
 
         std::array<unsigned int, 27> cellids;
         unsigned int count = 0;
-        for(unsigned int cx : xx) {
-            for(unsigned int cy : yy) {
-                for(unsigned int cz : zz) {
-                    cellids[count] = cz * nx * ny + cy * nx + cx;
-                    count++;
+        for (unsigned int cx : xx) {
+            for (unsigned int cy : yy) {
+                for (unsigned int cz : zz) {
+                    cellids[count++] = cz * nx * ny + cy * nx + cx;
                 }
             }
         }
 
-        for(unsigned int cid : cellids) {
-            for(unsigned int pid : subcells[cid]) {
-                if(pid == i) {
-                    continue;
-                }
+        for (unsigned int cid : cellids) {
+            for (unsigned int pid : subcells[cid]) {
+                if (pid == (unsigned)i) continue;
 
-                glm::dvec3 rij = this->positions[i] - this->positions[pid];
+                double dxp = px[i] - px[pid];
+                double dyp = py[i] - py[pid];
+                double dzp = pz[i] - pz[pid];
 
-                for(unsigned int k=0; k<3; k++) {
-                    if(rij[k] >= this->dims[k] * 0.5) {
-                        rij[k] -= this->dims[k];
-                        continue;
-                    }
+                if (dxp >= dims.x * 0.5) dxp -= dims.x;
+                else if (dxp < -dims.x * 0.5) dxp += dims.x;
 
-                    if(rij[k] < -this->dims[k] * 0.5) {
-                        rij[k] += this->dims[k];
-                    }
-                }
+                if (dyp >= dims.y * 0.5) dyp -= dims.y;
+                else if (dyp < -dims.y * 0.5) dyp += dims.y;
 
-                const double dist2 = glm::length2(rij);
+                if (dzp >= dims.z * 0.5) dzp -= dims.z;
+                else if (dzp < -dims.z * 0.5) dzp += dims.z;
 
-                if(dist2 <= cutsq) {
+                const double dist2 = dxp*dxp + dyp*dyp + dzp*dzp;
+                if (dist2 <= cutsq) {
                     nnlist[i].push_back(pid);
                 }
             }
         }
     }
 
-    // build continuous list
-    this->neighbor_list.resize(this->positions.size());
-    for(unsigned int i=0; i<this->positions.size(); i++) {
-        this->neighbor_list[i] = this->neighbor_list.size();
-        this->neighbor_list.insert(this->neighbor_list.end(), nnlist[i].begin(), nnlist[i].end());
-        this->neighbor_list.push_back(i);
+    neighbor_list.clear();
+    neighbor_list.resize(npos);
+
+    for (unsigned int i = 0; i < (unsigned)npos; i++) {
+        neighbor_list[i] = (unsigned int)neighbor_list.size();
+        neighbor_list.insert(neighbor_list.end(), nnlist[i].begin(), nnlist[i].end());
+        neighbor_list.push_back(i); // sentinel
     }
 }
 
 /**
- * @brief      Check whether neighbor list needs to be updated
- *
- * @return     Whether neighbor list needs to be updated
+ * @brief Check whether neighbor list rebuild is required.
+ * @return True if rebuild is needed.
  */
 bool LennardJonesSimulation::check_update_neighbor_list() const {
     const double shell = this->params->get_param<double>("shell");
     const double shellsq = shell * shell;
+    const double thresh = shellsq * 0.25;
 
-    for(const auto& dij : this->dij_list) {
-        if(glm::length2(dij) > shellsq * 0.25) {
-            return true;
-        }
+    const size_t n = dijx.size();
+    for (size_t i = 0; i < n; i++) {
+        const double d2 = dijx[i]*dijx[i] + dijy[i]*dijy[i] + dijz[i]*dijz[i];
+        if (d2 > thresh) return true;
     }
-
     return false;
+}
+
+/**
+ * @brief Publish simulation buffer as render buffer.
+ * @param new_render_idx Buffer index to publish.
+ */
+void LennardJonesSimulation::publish_state(int new_render_idx) {
+    render_idx.store(new_render_idx, std::memory_order_release);
 }

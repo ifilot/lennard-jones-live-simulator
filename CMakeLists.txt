@@ -20,8 +20,14 @@ execute_process(
 )
 add_compile_definitions(GIT_HASH="${GIT_HASH}")
 
-# Find Qt6 packages
-find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
+# Find Qt5 packages
+find_package(Qt5 REQUIRED COMPONENTS Widgets Charts)
+
+# Use GLM
+find_package(glm REQUIRED)
+
+# Use Eigen
+find_package(Eigen3 REQUIRED NO_MODULE)
 
 add_executable(ljsim
     src/main.cpp
@@ -45,10 +51,13 @@ add_executable(ljsim
     resources.qrc
 )
 
-include_directories("src/vendor/eigen-3.4.0"
-                    "src/vendor/glm-1.0.1")
-
-target_link_libraries(ljsim PRIVATE Qt6::Core Qt6::Widgets Qt6::Charts)
+target_link_libraries(ljsim PRIVATE 
+    Qt5::Core 
+    Qt5::Widgets 
+    Qt5::Charts
+    Eigen3::Eigen
+    glm::glm
+)
 
 set_target_properties(ljsim PROPERTIES
     WIN32_EXECUTABLE ON
