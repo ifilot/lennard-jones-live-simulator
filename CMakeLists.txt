@@ -63,3 +63,7 @@ set_target_properties(ljsim PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
 )
+
+if (WIN32)
+    target_sources(ljsim PRIVATE ljsim.rc)
+endif()
