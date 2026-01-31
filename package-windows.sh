@@ -4,7 +4,7 @@ set -euo pipefail
 # ============================
 # Configuration
 # ============================
-APP_NAME="Lennard-Jones Simulator"
+APP_NAME="ljsim"
 APP_EXE="ljsim.exe"
 BUILD_DIR="build"
 DIST_ROOT="dist"
